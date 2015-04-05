@@ -6,12 +6,10 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"github.com/go-martini/martini"
-	"github.com/martini-contrib/encoder"
+	"github.com/Unknwon/macaron"
 	"github.com/robertkrimen/otto"
 	"net/http"
 	"regexp"
-	"strconv"
 	"time"
 )
 
@@ -29,23 +27,21 @@ type Server struct {
 }
 
 func (s *Server) Run() {
-	m := martini.New()
-	r := martini.NewRouter()
-	m.Action(r.Handle)
-	m.Use(martini.Logger())
-	// API
-	r.Group("", func(r martini.Router) {
-		r.Get("/serverinfo", wrapEncode(s))
-	}, jsonMiddleware)
+	m := macaron.Classic()
+	m.Use(macaron.Renderer())
+	// JSON API
+	m.Group("", func() {
+		m.Get("/serverinfo", wrapJSON(s))
+	})
 	// CLICK'N'LOAD v2
-	r.Group("", func(r martini.Router) {
-		r.Post("/flash/addcrypted2", clickNLoad)
-		r.Get("/flash", wrap("UGET"))
-		r.Get("/jdcheck.js", as("text/javascript"), wrap("jdownloader = true;"))
-		r.Get("/crossdomain.xml", as("text/html"), wrap(crossdomain))
+	m.Group("", func() {
+		m.Post("/flash/addcrypted2", clickNLoad)
+		m.Get("/flash", wrap("UGET"))
+		m.Get("/jdcheck.js", as("text/javascript"), wrap("jdownloader = true;"))
+		m.Get("/crossdomain.xml", as("text/html"), wrap(crossdomain))
 	})
 	s.StartedAt = time.Now().Round(time.Minute)
-	m.RunOnAddr(fmt.Sprintf("%v:%v", s.BindAddr, s.Port))
+	m.Run(s.BindAddr, int(s.Port))
 }
 
 func clickNLoad(r *http.Request) (int, string) {
@@ -53,22 +49,28 @@ func clickNLoad(r *http.Request) (int, string) {
 	// pw := r.FormValue("pw")
 	crypted := r.FormValue("crypted")
 	vm := otto.New()
-	vm.Run(jk)
-	value, _ := vm.Run("f()")
-	key, _ := hex.DecodeString(value.String())
-	block, _ := aes.NewCipher(key)
-	data, _ := base64.StdEncoding.DecodeString(crypted)
+	value, err1 := vm.Run(jk)
+	value, err := vm.Run("f()")
+	if err != nil || err1 != nil {
+		return 400, "Invalid Javascript in query param 'jk'."
+	}
+	key, err := hex.DecodeString(value.String())
+	if err != nil {
+		return 400, "String returned from JS function was not valid HEX."
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return 400, "Invalid AES key."
+	}
+	data, err := base64.StdEncoding.DecodeString(crypted)
+	if err != nil {
+		return 400, "Invalid b64 encoded string in param 'crypted'."
+	}
 	c := cipher.NewCBCDecrypter(block, key)
 	c.CryptBlocks(data, data)
 	result := regexp.MustCompile(`\s+`).Split(string(data), -1)
 	fmt.Printf("Added new container with %v links.\n", len(result))
 	return 200, "success\r\n"
-}
-
-func jsonMiddleware(c martini.Context, w http.ResponseWriter, r *http.Request) {
-	pretty, _ := strconv.ParseBool(r.FormValue("pretty_json"))
-	c.MapTo(encoder.JsonEncoder{PrettyPrint: pretty}, (*encoder.Encoder)(nil))
-	as("application/json")(w)
 }
 
 func as(ctype string) func(http.ResponseWriter) {
@@ -77,17 +79,16 @@ func as(ctype string) func(http.ResponseWriter) {
 	}
 }
 
-func wrap(v string) func() string {
-	return func() string {
-		fmt.Print("EXIT")
+func wrap(v interface{}) func() interface{} {
+	return func() interface{} {
 		return v
 	}
 }
 
 // Wraps a static value in a function block
-// This is a convenience method to use with martini
-func wrapEncode(v interface{}) func(encoder.Encoder) []byte {
-	return func(enc encoder.Encoder) []byte {
-		return encoder.Must(enc.Encode(v))
+// This is a convenience method to use with macaron
+func wrapJSON(v interface{}) func(*macaron.Context) {
+	return func(ctx *macaron.Context) {
+		ctx.JSON(200, v)
 	}
 }
