@@ -26,13 +26,7 @@ func CreateApp() *cli.App {
 	}
 	app.Commands = []cli.Command{
 		{
-			Name: "push",
-			// Flags: []cli.Flag{
-			//   cli.BoolFlag{
-			//     Name: "force",
-			//     Usage: "force the push",
-			//   },
-			// },
+			Name:   "push",
 			Usage:  "push the container specs to the daemon",
 			Action: Push,
 		},
