@@ -8,16 +8,17 @@ import (
 )
 
 type Provider interface {
+	Name() string
 	Login(*Downloader)
 	Action(*http.Response, *Downloader) *action.Action
 }
 
 type Downloader struct {
-	Queue            *Queue
-	Client           *http.Client
-	CurrentDownloads []*Download
-	MaxDownloads     int
-	channel          chan *Download
+	Queue           *Queue
+	Client          *http.Client
+	downloadChannel chan *Download
+	MaxDownloads    int
+	done            chan bool
 }
 
 var providers = []Provider{}
@@ -30,11 +31,11 @@ func RegisterProvider(p Provider) {
 func NewDownloader() *Downloader {
 	jar, _ := cookiejar.New(nil)
 	dl := &Downloader{
-		Queue:            NewQueue(),
-		Client:           &http.Client{Jar: jar},
-		MaxDownloads:     3,
-		CurrentDownloads: []*Download{},
-		channel:          make(chan *Download, 3),
+		Queue:           NewQueue(),
+		Client:          &http.Client{Jar: jar},
+		MaxDownloads:    3,
+		downloadChannel: make(chan *Download, 3),
+		done:            make(chan bool, 1),
 	}
 	for _, p := range providers {
 		p.Login(dl)
@@ -42,28 +43,47 @@ func NewDownloader() *Downloader {
 	return dl
 }
 
+func (d *Downloader) Start(async bool) {
+	if async {
+		d.StartAsync()
+	} else {
+		d.StartSync()
+	}
+}
+
+func (d *Downloader) StartSync() {
+	d.StartAsync()
+	<-d.done
+}
+
+func (d *Downloader) Finished() <-chan bool {
+	return d.done
+}
+
+func (d *Downloader) work() {
+	for fs := d.Queue.Pop(); fs != nil; fs = d.Queue.Pop() {
+		d.Download(fs)
+	}
+}
+
 func (d *Downloader) StartAsync() {
 	dones := make(chan bool, d.MaxDownloads)
 	for i := 0; i < d.MaxDownloads; i++ {
-		go d.work(dones)
+		go func() {
+			d.work()
+			dones <- true
+		}()
 	}
-	for i := 0; i < d.MaxDownloads; i++ {
-		_ = <-dones
-	}
+	go func() {
+		for i := 0; i < d.MaxDownloads; i++ {
+			<-dones
+		}
+		d.done <- true
+	}()
 }
 
-func (d *Downloader) Start() {
-	d.StartAsync()
-}
-
-func (d *Downloader) work(done chan bool) {
-	for fs := d.Queue.Pop(); fs != nil; fs = d.Queue.Pop() {
-		d.StartSync(fs)
-	}
-	done <- true
-}
-
-func (d *Downloader) StartSync(fs *FileSpec) {
+func (d *Downloader) Download(fs *FileSpec) {
+	log.Debugf("Downloading remote file: %v", fs.URL)
 	req, _ := http.NewRequest("GET", fs.URL.String(), nil)
 	resp, err := d.Client.Do(req)
 	if err != nil {
@@ -82,24 +102,33 @@ func (d *Downloader) StartSync(fs *FileSpec) {
 			fs2 := &FileSpec{}
 			*fs2 = *fs // Copy fs to fs2
 			fs2.URL = a.RedirectTo
-			d.StartSync(fs2)
+			log.Debugf("Got redirect instruction from %v provider. Location: %v", p.Name(), fs2.URL)
+			d.Download(fs2)
 		case action.GOAL:
-			dl := &Download{
-				Response: resp,
-			}
-			d.channel <- dl
-			dl.Start()
-		case action.CONTAINER:
+			download := &Download{Response: resp}
+			d.downloadChannel <- download
+			download.Start()
+		case action.BUNDLE:
+			log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
 			d.Queue.AddLinks(a.Links, fs.Priority)
 		case action.DEADEND:
+			log.Debugf("Reached deadend (via %v provider).", p.Name())
 		}
 		return
 	}
 }
 
+func (d *Downloader) NewDownload() <-chan *Download {
+	return d.downloadChannel
+}
+
 type DefaultProvider struct{}
 
 func (p DefaultProvider) Login(d *Downloader) {}
+
+func (p DefaultProvider) Name() string {
+	return "default"
+}
 
 func (p DefaultProvider) Action(r *http.Response, d *Downloader) *action.Action {
 	if r.StatusCode != http.StatusOK {

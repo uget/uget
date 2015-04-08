@@ -1,11 +1,14 @@
 package cli
 
 import (
+	// "fmt"
+	log "github.com/cihub/seelog"
 	"github.com/codegangsta/cli"
 	"github.com/muja/uget/api"
-	"log"
+	"github.com/muja/uget/core"
 	"os"
 	"os/exec"
+	"time"
 )
 
 func CreateApp() *cli.App {
@@ -29,6 +32,11 @@ func CreateApp() *cli.App {
 			Name:   "push",
 			Usage:  "push the container specs to the daemon",
 			Action: Push,
+		},
+		{
+			Name:   "get",
+			Usage:  "download a single link",
+			Action: Get,
 		},
 		{
 			Name:   "daemon",
@@ -61,7 +69,7 @@ func Server(c *cli.Context) {
 	server.BindAddr = c.String("bind")
 	server.Port = uint16(c.Int("port"))
 	if server.Port != 9666 {
-		log.Print("Warning: Click'n'Load v2 will only work for port 9666!")
+		log.Warn("Click'n'Load v2 will only work for port 9666!")
 	}
 	server.Run()
 }
@@ -70,17 +78,45 @@ func Daemon(c *cli.Context) {
 	cmd := exec.Command(os.Args[0], append([]string{"server"}, os.Args[2:]...)...)
 	fi, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 	cmd.Stdout, cmd.Stderr = fi, fi
 	err = cmd.Start()
 	if err != nil {
-		log.Fatal("Error starting the daemon: ", err, ".")
+		log.Error("Error starting the daemon: ", err, ".")
 	} else {
-		log.Print("Daemon running with pid ", cmd.Process.Pid)
+		log.Info("Daemon running with pid ", cmd.Process.Pid)
 	}
 }
 
 func Push(c *cli.Context) {
-	log.Fatal("Not implemented yet.")
+	log.Error("Not implemented yet.")
+}
+
+func Get(c *cli.Context) {
+	links := c.Args()
+	client := core.NewDownloader()
+	client.Queue.AddLinks(links, 1)
+	client.Start(true)
+	for {
+		select {
+		case <-client.Finished():
+			return
+		case download := <-client.NewDownload():
+			download.UpdateInterval = 500 * time.Millisecond
+			download.AddProgressListener(core.ProgressListener{
+				Update: func(progress float64, total float64) {
+					log.Tracef("%v - progress: %.2f%%", download.Filename(), progress/total*100)
+				},
+				Done: func(dur time.Duration, err error) {
+					if err != nil {
+						log.Errorf("Error! %v", err)
+					} else {
+						log.Infof("Done! Duration: %v", dur)
+					}
+				},
+			})
+
+		}
+	}
 }
