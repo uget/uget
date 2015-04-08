@@ -6,7 +6,6 @@ import (
 
 type FileSpec struct {
 	URL      *url.URL
-	Name     string
 	Bundle   *Bundle
 	Priority int
 }
