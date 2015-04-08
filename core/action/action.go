@@ -22,7 +22,7 @@ const (
 	// We have reached a dead end. The file is either gone or was never there.
 	DEADEND
 	// The underlying response contains a subset of files.
-	CONTAINER
+	BUNDLE
 )
 
 func Goal() *Action {
@@ -41,6 +41,6 @@ func Deadend() *Action {
 	return &Action{Value: DEADEND}
 }
 
-func Container(links []string) *Action {
-	return &Action{Value: CONTAINER, Links: links}
+func Bundle(links []string) *Action {
+	return &Action{Value: BUNDLE, Links: links}
 }
