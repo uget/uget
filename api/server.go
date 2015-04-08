@@ -1,28 +1,16 @@
 package api
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/Unknwon/macaron"
 	log "github.com/cihub/seelog"
-	"github.com/robertkrimen/otto"
+	"github.com/uget/cnlv2"
 	"github.com/uget/uget/core"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 )
-
-var crossdomain = `<?xml version="1.0"?>
-<!DOCTYPE cross-domain-policy SYSTEM "http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd">
-<cross-domain-policy>
-<allow-access-from domain="*" />
-</cross-domain-policy>
-`
 
 type Server struct {
 	BindAddr  string    `json:"bind_address,omitempty"`
@@ -54,42 +42,17 @@ func (s *Server) Run() {
 	})
 	// CLICK'N'LOAD v2
 	m.Group("", func() {
-		m.Post("/flash/addcrypted2", clickNLoad)
+		m.Post("/flash/addcrypted2", cnlv2.HttpAction(addLinks, nil))
 		m.Get("/flash", wrap("UGET"))
 		m.Get("/jdcheck.js", as("text/javascript"), wrap("jdownloader = true;"))
-		m.Get("/crossdomain.xml", as("text/html"), wrap(crossdomain))
+		m.Get("/crossdomain.xml", as("text/html"), wrap(cnlv2.CrossDomain))
 	})
 	s.StartedAt = time.Now().Round(time.Minute)
 	m.Run(s.BindAddr, int(s.Port))
 }
 
-func clickNLoad(r *http.Request) (int, string) {
-	jk := r.FormValue("jk")
-	// pw := r.FormValue("pw")
-	crypted := r.FormValue("crypted")
-	vm := otto.New()
-	value, err1 := vm.Run(jk)
-	value, err := vm.Run("f()")
-	if err != nil || err1 != nil {
-		return http.StatusBadRequest, "Invalid Javascript in query param 'jk'."
-	}
-	key, err := hex.DecodeString(value.String())
-	if err != nil {
-		return http.StatusBadRequest, "String returned from JS function was not valid HEX."
-	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return http.StatusBadRequest, "Invalid AES key."
-	}
-	data, err := base64.StdEncoding.DecodeString(crypted)
-	if err != nil {
-		return http.StatusBadRequest, "Invalid b64 encoded string in param 'crypted'."
-	}
-	c := cipher.NewCBCDecrypter(block, key)
-	c.CryptBlocks(data, data)
-	result := regexp.MustCompile(`\s+`).Split(string(data), -1)
-	fmt.Printf("Added new container with %v links.\n", len(result))
-	return http.StatusOK, "success\r\n"
+func addLinks(links []string) {
+	log.Debugf("Added %v links!", len(links))
 }
 
 func (s *Server) createContainer(c *macaron.Context) {
