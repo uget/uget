@@ -1,6 +1,7 @@
 package core
 
 import (
+	log "github.com/cihub/seelog"
 	pq "github.com/oleiade/lane"
 )
 
@@ -17,8 +18,11 @@ func NewQueue() *Queue {
 func (q *Queue) Pop() *FileSpec {
 	object, _ := q.pQueue.Pop()
 	if object != nil {
-		return object.(*FileSpec)
+		fs := object.(*FileSpec)
+		log.Tracef("Queue.Pop: Popped file: %v", fs.URL)
+		return fs
 	}
+	log.Tracef("Queue.Pop: Nothing popped.")
 	return nil
 }
 
@@ -27,6 +31,7 @@ func (q *Queue) AddLinks(links []string, prio int) ([]*FileSpec, error) {
 	if err == nil {
 		for _, f := range fs {
 			f.Priority = prio
+			log.Tracef("Added link to queue: %v", f.URL)
 			q.pQueue.Push(f, prio)
 		}
 	}
