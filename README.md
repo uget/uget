@@ -1,13 +1,6 @@
 # Universal Getter. Includes plain HTTP and several file-hosters.
 
-## Supported file-hosters so far:
-
-- uploaded.net
-- share-online.biz
-- oboom.net
-
-Many more to come!
-
+Check out the supported providers at the [other repository](http://github.com/uget/providers)
 
 ## Usage
 
