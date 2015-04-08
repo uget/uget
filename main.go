@@ -2,8 +2,8 @@ package main
 
 import (
 	"github.com/cihub/seelog"
-	"github.com/muja/uget/cli"
-	"github.com/muja/uget/utils"
+	"github.com/uget/uget/cli"
+	"github.com/uget/uget/utils"
 	"os"
 )
 

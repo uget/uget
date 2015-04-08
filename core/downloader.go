@@ -2,7 +2,7 @@ package core
 
 import (
 	log "github.com/cihub/seelog"
-	"github.com/muja/uget/core/action"
+	"github.com/uget/uget/core/action"
 	"net/http"
 	"net/http/cookiejar"
 )
