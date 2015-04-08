@@ -62,7 +62,7 @@ func (d *Download) Start() {
 			}
 		case err := <-done:
 			d.done(time.Now().Sub(start), err)
-			break
+			return
 		}
 	}
 }
