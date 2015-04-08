@@ -11,6 +11,10 @@ type Queue struct {
 
 func NewQueue() *Queue {
 	return &Queue{
+		// TODO: implement own PQueue.
+		// lane's pqueue only considers the integer value priority.
+		// What we want is a priority queue that considers the integer value first,
+		// and the order the links came in / alphabetical order second.
 		pQueue: pq.NewPQueue(pq.MAXPQ),
 	}
 }
