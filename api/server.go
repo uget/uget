@@ -5,11 +5,15 @@ import (
 	"crypto/cipher"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"github.com/Unknwon/macaron"
+	log "github.com/cihub/seelog"
+	"github.com/muja/uget/core"
 	"github.com/robertkrimen/otto"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -26,12 +30,27 @@ type Server struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
+var downloader = core.NewDownloader()
+
+type macaronLog struct{}
+
+func (w macaronLog) Write(p []byte) (int, error) {
+	log.Info(strings.TrimSpace(string(p)))
+	return len(p), nil
+}
+
 func (s *Server) Run() {
-	m := macaron.Classic()
+	m := macaron.NewWithLogger(macaronLog{})
 	m.Use(macaron.Renderer())
 	// JSON API
 	m.Group("", func() {
 		m.Get("/serverinfo", wrapJSON(s))
+		m.Group("/containers", func() {
+			m.Post("", s.createContainer)
+			m.Get("", s.listContainers)
+			m.Get("/:id", s.showContainer)
+			m.Delete("/:id", s.deleteContainer)
+		})
 	})
 	// CLICK'N'LOAD v2
 	m.Group("", func() {
@@ -52,25 +71,49 @@ func clickNLoad(r *http.Request) (int, string) {
 	value, err1 := vm.Run(jk)
 	value, err := vm.Run("f()")
 	if err != nil || err1 != nil {
-		return 400, "Invalid Javascript in query param 'jk'."
+		return http.StatusBadRequest, "Invalid Javascript in query param 'jk'."
 	}
 	key, err := hex.DecodeString(value.String())
 	if err != nil {
-		return 400, "String returned from JS function was not valid HEX."
+		return http.StatusBadRequest, "String returned from JS function was not valid HEX."
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return 400, "Invalid AES key."
+		return http.StatusBadRequest, "Invalid AES key."
 	}
 	data, err := base64.StdEncoding.DecodeString(crypted)
 	if err != nil {
-		return 400, "Invalid b64 encoded string in param 'crypted'."
+		return http.StatusBadRequest, "Invalid b64 encoded string in param 'crypted'."
 	}
 	c := cipher.NewCBCDecrypter(block, key)
 	c.CryptBlocks(data, data)
 	result := regexp.MustCompile(`\s+`).Split(string(data), -1)
 	fmt.Printf("Added new container with %v links.\n", len(result))
-	return 200, "success\r\n"
+	return http.StatusOK, "success\r\n"
+}
+
+func (s *Server) createContainer(c *macaron.Context) {
+	var container struct {
+		string `json:"p"`
+	}
+	decoder := json.NewDecoder(c.Req.Body().ReadCloser())
+	if decoder.Decode(&container) != nil {
+		c.Render.Error(http.StatusNotFound, "Invalid JSON.")
+	}
+	c.Render.RawData(http.StatusOK, []byte("okay!"))
+}
+
+func (s *Server) listContainers(c *macaron.Context) {
+
+}
+
+func (s *Server) showContainer(c *macaron.Context) {
+
+}
+
+func (s *Server) deleteContainer(c *macaron.Context) {
+	fmt.Printf("Deleting %s\n", c.Params("id"))
+	c.Status(http.StatusNoContent)
 }
 
 func as(ctype string) func(http.ResponseWriter) {
@@ -89,6 +132,6 @@ func wrap(v interface{}) func() interface{} {
 // This is a convenience method to use with macaron
 func wrapJSON(v interface{}) func(*macaron.Context) {
 	return func(ctx *macaron.Context) {
-		ctx.JSON(200, v)
+		ctx.JSON(http.StatusOK, v)
 	}
 }
