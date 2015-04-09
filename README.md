@@ -2,17 +2,41 @@
 
 Check out the supported providers at the [other repository](http://github.com/uget/providers)
 
+## Disclaimer
+
+**This package is under heavy development, so documentation may fall behind and the APIs may change.**
+
 ## Usage
 
 ### CLI
 
-Start a daemon that runs in the background and listens for download requests
+#### Implemented
+
+Get remote file. Plain HTTP is natively supported. Providers may be added (see above).
 ```bash
-ugetd
+uget get LINK...
 ```
 
+#### Not (fully) implemented yet
+
+Start server as daemon.
+```bash
+uget daemon
+```
+
+Start server in foreground. (Currently lacks any usable features)
+```bash
+uget server
+```
+
+Push a list of files to the listening server. (Not implemented yet)
 ```bash
 uget push [OPTIONS...] CONTAINER_SPEC [CONTAINER_SPEC...]
+```
+
+Add your credentials for a provider. You will be prompted.
+```bash
+uget accounts add PROVIDER
 ```
 
 `CONTAINER_SPEC` can be one of:  
