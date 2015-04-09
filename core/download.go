@@ -42,6 +42,18 @@ func (d *Download) done(dur time.Duration, err error) {
 
 func (d *Download) Start() {
 	log.Debugf("Downloading %v", d.Filename())
+	fi, err := os.Stat(d.Path())
+	if err == nil {
+		if fi.Size() == d.Response.ContentLength {
+			// File already exists
+			log.Debugf("%v already exists... Returning", d.Filename())
+			d.done(0, nil)
+			return
+		}
+	} else if !os.IsNotExist(err) {
+		d.done(0, err)
+		return
+	}
 	f, err := os.Create(d.Path())
 	if err != nil {
 		d.done(0, err)
