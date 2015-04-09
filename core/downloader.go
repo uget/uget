@@ -7,25 +7,12 @@ import (
 	"net/http/cookiejar"
 )
 
-type Provider interface {
-	Name() string
-	Login(*Downloader)
-	Action(*http.Response, *Downloader) *action.Action
-}
-
 type Downloader struct {
 	Queue           *Queue
 	Client          *http.Client
 	downloadChannel chan *Download
 	MaxDownloads    int
 	done            chan bool
-}
-
-var providers = []Provider{}
-
-// Register a provider. This function is not thread-safe (yet)!
-func RegisterProvider(p Provider) {
-	providers = append(providers, p)
 }
 
 func NewDownloader() *Downloader {
@@ -91,13 +78,11 @@ func (d *Downloader) Download(fs *FileSpec) {
 		return
 	}
 	// Reverse iterate -> last provider is the default provider
-	l := len(providers)
-	for i := range providers {
-		p := providers[l-1-i]
+	ProviderWhere(func(p Provider) bool {
 		a := p.Action(resp, d)
 		switch a.Value {
 		case action.NEXT:
-			continue
+			return false
 		case action.REDIRECT:
 			fs2 := &FileSpec{}
 			*fs2 = *fs // Copy fs to fs2
@@ -114,31 +99,10 @@ func (d *Downloader) Download(fs *FileSpec) {
 		case action.DEADEND:
 			log.Debugf("Reached deadend (via %v provider).", p.Name())
 		}
-		return
-	}
+		return true
+	})
 }
 
 func (d *Downloader) NewDownload() <-chan *Download {
 	return d.downloadChannel
-}
-
-type DefaultProvider struct{}
-
-func (p DefaultProvider) Login(d *Downloader) {}
-
-func (p DefaultProvider) Name() string {
-	return "default"
-}
-
-func (p DefaultProvider) Action(r *http.Response, d *Downloader) *action.Action {
-	if r.StatusCode != http.StatusOK {
-		return action.Deadend()
-	}
-	// TODO: Make action dependent on content type?
-	// ensure underlying body is indeed a file, and not a html page / etc.
-	return action.Goal()
-}
-
-func init() {
-	RegisterProvider(DefaultProvider{})
 }

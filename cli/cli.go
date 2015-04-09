@@ -1,7 +1,8 @@
+// * * *
 package cli
 
 import (
-	// "fmt"
+	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/codegangsta/cli"
 	"github.com/uget/uget/api"
@@ -32,6 +33,18 @@ func CreateApp() *cli.App {
 			Name:   "push",
 			Usage:  "push the container specs to the daemon",
 			Action: Push,
+		},
+		{
+			Name:  "accounts",
+			Usage: "manage your accounts",
+			Subcommands: []cli.Command{
+				{
+					Name:            "add",
+					Usage:           "add an account",
+					Action:          AddAccount,
+					SkipFlagParsing: true,
+				},
+			},
 		},
 		{
 			Name:   "get",
@@ -116,7 +129,17 @@ func Get(c *cli.Context) {
 					}
 				},
 			})
-
 		}
 	}
+}
+
+func AddAccount(c *cli.Context) {
+	p := c.Args().First()
+	provider := core.GetProvider(p)
+	if provider == nil {
+		fmt.Printf("No provider found for %s\n", p)
+		return
+	}
+	prompter := NewCliPrompter(c, p)
+	provider.AddAccount(prompter)
 }
