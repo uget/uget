@@ -4,7 +4,7 @@ package utils
 
 import (
 	"os/user"
-	"path"
+	path "path/filepath"
 )
 
 func AppData() string {

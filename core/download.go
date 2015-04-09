@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
+	path "path/filepath"
 	"regexp"
 	"strings"
 	"time"
