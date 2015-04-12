@@ -12,27 +12,20 @@ import (
 
 type CliPrompter struct {
 	Context *cli.Context
-	fields  []*core.Field
 	prefix  string
 }
 
 func NewCliPrompter(c *cli.Context, prefix string) *CliPrompter {
 	return &CliPrompter{
 		Context: c,
-		fields:  make([]*core.Field, 0, 5),
 		prefix:  prefix,
 	}
 }
 
-func (c *CliPrompter) Define(f *core.Field) {
-	c.fields = append(c.fields, f)
-}
-
-func (c CliPrompter) Get() map[string]string {
+func (c CliPrompter) Get(fields []core.Field) map[string]string {
 	reader := bufio.NewReader(os.Stdin)
 	values := map[string]string{}
-	// fmt.Printf("field: %+v\n", c.fields)
-	for _, field := range c.fields {
+	for _, field := range fields {
 		if c.Context.IsSet("--" + field.Key) {
 			values[field.Key] = c.Context.String("--" + field.Key)
 		} else {

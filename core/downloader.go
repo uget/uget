@@ -5,13 +5,14 @@ import (
 	"github.com/uget/uget/core/action"
 	"net/http"
 	"net/http/cookiejar"
+	"sync"
 )
 
 type Downloader struct {
 	Queue           *Queue
 	Client          *http.Client
-	downloadChannel chan *Download
 	MaxDownloads    int
+	downloadChannel chan *Download
 	done            chan bool
 }
 
@@ -25,7 +26,7 @@ func NewDownloader() *Downloader {
 		done:            make(chan bool, 1),
 	}
 	for _, p := range providers {
-		p.Login(dl)
+		TryLogin(p, dl)
 	}
 	return dl
 }
@@ -54,17 +55,16 @@ func (d *Downloader) work() {
 }
 
 func (d *Downloader) StartAsync() {
-	dones := make(chan bool, d.MaxDownloads)
+	var wg sync.WaitGroup
+	wg.Add(d.MaxDownloads)
 	for i := 0; i < d.MaxDownloads; i++ {
 		go func() {
+			defer wg.Done()
 			d.work()
-			dones <- true
 		}()
 	}
 	go func() {
-		for i := 0; i < d.MaxDownloads; i++ {
-			<-dones
-		}
+		wg.Wait()
 		d.done <- true
 	}()
 }
@@ -74,11 +74,11 @@ func (d *Downloader) Download(fs *FileSpec) {
 	req, _ := http.NewRequest("GET", fs.URL.String(), nil)
 	resp, err := d.Client.Do(req)
 	if err != nil {
-		log.Errorf("Error while requesting %v: %v")
+		log.Errorf("Error while requesting %v: %v", fs.URL.String(), err)
 		return
 	}
 	// Reverse iterate -> last provider is the default provider
-	ProviderWhere(func(p Provider) bool {
+	FindProvider(func(p Provider) bool {
 		a := p.Action(resp, d)
 		switch a.Value {
 		case action.NEXT:
@@ -86,7 +86,7 @@ func (d *Downloader) Download(fs *FileSpec) {
 		case action.REDIRECT:
 			fs2 := &FileSpec{}
 			*fs2 = *fs // Copy fs to fs2
-			fs2.URL = a.RedirectTo
+			fs2.URL = resp.Request.URL.ResolveReference(a.RedirectTo)
 			log.Debugf("Got redirect instruction from %v provider. Location: %v", p.Name(), fs2.URL)
 			d.Download(fs2)
 		case action.GOAL:

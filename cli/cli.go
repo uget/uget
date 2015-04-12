@@ -1,12 +1,13 @@
-// * * *
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	log "github.com/cihub/seelog"
 	"github.com/codegangsta/cli"
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
+	"github.com/uget/uget/core/account"
 	"os"
 	"os/exec"
 	"time"
@@ -42,6 +43,12 @@ func CreateApp() *cli.App {
 					Name:            "add",
 					Usage:           "add an account",
 					Action:          AddAccount,
+					SkipFlagParsing: true,
+				},
+				{
+					Name:            "list",
+					Usage:           "list all accounts",
+					Action:          ListAccounts,
 					SkipFlagParsing: true,
 				},
 			},
@@ -106,8 +113,34 @@ func Push(c *cli.Context) {
 	log.Error("Not implemented yet.")
 }
 
+func linksFromFile(links *[]string, f string) error {
+	file, err := os.Open(f)
+	if err != nil {
+		log.Criticalf("Could not open file %s", f)
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		*links = append(*links, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Critical(err)
+		return err
+	}
+	return nil
+}
+
 func Get(c *cli.Context) {
-	links := c.Args()
+	files := c.Args()
+	fmt.Println("hallo\n")
+	links := make([]string, 0, 256)
+	for _, file := range files {
+		linksFromFile(&links, file)
+	}
+	fmt.Printf("%v\n", links)
 	client := core.NewDownloader()
 	client.Queue.AddLinks(links, 1)
 	client.Start(true)
@@ -141,5 +174,28 @@ func AddAccount(c *cli.Context) {
 		return
 	}
 	prompter := NewCliPrompter(c, p)
-	provider.AddAccount(prompter)
+	if !core.TryAddAccount(provider, prompter) {
+		fmt.Printf("This provider does not support accounts.\n")
+	}
+}
+
+func ListAccounts(c *cli.Context) {
+	pn := c.Args().First()
+	var providers []core.Provider
+	if pn == "" {
+		providers = core.AllProviders()
+	} else {
+		providers = []core.Provider{core.GetProvider(pn)}
+	}
+	for _, p := range providers {
+		pp, ok := p.(core.PersistentProvider)
+		if ok {
+			var accs []interface{}
+			account.ManagerFor("", pp).Accounts(&accs)
+			fmt.Printf("%s:\n", p.Name())
+			for _, acc := range accs {
+				fmt.Printf("    %s\n", acc)
+			}
+		}
+	}
 }
