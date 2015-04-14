@@ -70,6 +70,7 @@ func ManagerFor(file string, p core.PersistentProvider) *Manager {
 
 func managerFor(file string) *real_manager {
 	mtx.Lock()
+	defer mtx.Unlock()
 	if managers[file] == nil {
 		m := &real_manager{
 			queue: make(chan *asyncJob),
@@ -78,7 +79,6 @@ func managerFor(file string) *real_manager {
 		managers[file] = m
 		go m.dispatch()
 	}
-	mtx.Unlock()
 	return managers[file]
 }
 
