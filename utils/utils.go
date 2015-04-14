@@ -1,22 +1,16 @@
 package utils
 
 import (
-	"os/user"
+	"github.com/Wessie/appdirs"
 	path "path/filepath"
 )
 
+var app = appdirs.New("uget", "", "")
+
 func ConfigPath() string {
-	return path.Join(AppData(), "ugett")
+	return app.UserData()
 }
 
 func AccountsPath() string {
 	return path.Join(ConfigPath(), "accounts.json")
-}
-
-func HomeDir() string {
-	user, err := user.Current()
-	if err != nil {
-		panic(err)
-	}
-	return user.HomeDir
 }
