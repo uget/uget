@@ -1,26 +1,74 @@
-# Universal Getter. Includes plain HTTP and several file-hosters.
+UGET (Universal GET)
+====================
 
-Check out the supported providers at the [other repository](http://github.com/uget/providers)
+# Table of contents
 
-## Disclaimer
+1. Introduction
+2. Getting started
+  1. Installation
+  2. Code examples
+  3. CLI
+3. Contributing
+4. Reporting bugs
 
-**This package is under heavy development, so documentation may fall behind and the APIs may change.**
+-------------------
 
-## Usage
+# 1. Introduction
 
-### CLI
+This project aims at providing an API / CLI for downloading remote files,
+focusing mainly on premium file-hosters.
 
-#### Implemented
+This repository holds the core project and aims to be very flexible.
+Check out the supported providers at the [other repository](https://github.com/uget/providers)
+ 
+**WARNING: This package is under heavy development, so documentation may fall behind and the APIs may change.**
 
-Get remote file. Plain HTTP is natively supported. Providers may be added (see above).
+# 2. Getting started
+
+## 2.1 Installation
+
+It's simple! Install Go, setup your `$GOPATH` and run:  
+`go install github.com/uget/uget`
+
+## 2.2 Code examples
+
+It's best to check out the [cli code](cli/cli.go) for examples.
+
+Downloading a multitude of links:
+
+```go
+// First, get your links from somewhere:
+links := ...
+// Then, create a new Downloader:
+client := core.NewDownloader()
+// Add those links to the downloader's queue:
+client.Queue.AddLinks(links, 1)
+// Start asynchronously (async = true):
+client.Start(true)
+for {
+  select {
+  case <-client.Finished():
+    return
+  case download := <-client.NewDownload():
+    // use download for something.
+  }
+}
+```
+
+## 2.3 CLI
+
+### Implemented
+
+Get a remote file:
 ```bash
 uget get CONTAINER_SPEC...
 ```
 
 `CONTAINER_SPEC` can be one of:  
 - plain file with a list of URLs
+- more to come.
 
-Add your credentials for a provider. You will be prompted.
+Add an account to a provider. You will be prompted for your credentials.
 ```bash
 uget accounts add [PROVIDER]
 ```
@@ -30,19 +78,19 @@ List your saved accounts.
 uget accounts list [PROVIDER]
 ```
 
-#### Not (fully) implemented yet
+### Not (fully) implemented yet
 
 Start server as daemon.
 ```bash
 uget daemon
 ```
 
-Start server in foreground. (Currently lacks any usable features)
+Start server in foreground.
 ```bash
 uget server
 ```
 
-Push a list of files to the listening server. (Not implemented yet)
+Push a list of files to the listening server.
 ```bash
 uget push [OPTIONS...] CONTAINER_SPEC...
 ```
@@ -52,11 +100,9 @@ Tell the daemon to drop a container (or a file)
 uget drop [ID]
 ```
 
-Pause the daemon. `--force` forces a pause.
-For file hosters that don't support partial GETs,
-the download speed will usually only be strongly restrained.
+Pause the daemon.
 ```
-uget pause [--force]
+uget pause [--soft]
 ```
 
 Continue the daemon.
@@ -66,10 +112,13 @@ uget continue
 
 List the downloads.
 ```
-uget list [CONTAINER]
+uget list [CONTAINER_ID]
 ```
 
-Resolve a container, list its content, etc.
-```
-uget meta CONTAINER_SPEC
-```
+# 3. Contributing
+
+Contributions are welcome! Fork -> Push -> Pull request.
+
+# 4. Bug report / suggestions
+
+Just create an issue! I will try to reply as soon as possible.
