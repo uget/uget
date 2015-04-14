@@ -163,6 +163,9 @@ func Get(c *cli.Context) {
 				Update: func(progress float64, total float64) {
 					con.EditRow(id, fn(download.Filename(), progress, total))
 				},
+				Skip: func() {
+					con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
+				},
 				Done: func(dur time.Duration, err error) {
 					if err != nil {
 						con.EditRow(id, fmt.Sprintf("%s: error: %v", download.Filename(), err))

@@ -22,6 +22,7 @@ type Download struct {
 type ProgressListener struct {
 	Update func(float64, float64)
 	Done   func(time.Duration, error)
+	Skip   func()
 }
 
 func (d *Download) update(f1 float64, f2 float64) {
@@ -40,14 +41,22 @@ func (d *Download) done(dur time.Duration, err error) {
 	}
 }
 
+func (d *Download) skip() {
+	for _, x := range d.ProgressListeners {
+		if x.Skip != nil {
+			x.Skip()
+		}
+	}
+}
+
 func (d *Download) Start() {
 	log.Debugf("Downloading %v", d.Filename())
 	fi, err := os.Stat(d.Path())
 	if err == nil {
 		if fi.Size() == d.Response.ContentLength {
 			// File already exists
-			log.Debugf("%v already exists... Returning", d.Filename())
-			d.done(0, nil)
+			// log.Debugf("%v already exists... Returning", d.Filename())
+			d.skip()
 			return
 		}
 	} else if !os.IsNotExist(err) {
