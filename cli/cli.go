@@ -8,6 +8,8 @@ import (
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
 	"github.com/uget/uget/core/account"
+	"github.com/uget/uget/utils/console"
+	"github.com/uget/uget/utils/units"
 	"os"
 	"os/exec"
 	"strings"
@@ -143,21 +145,29 @@ func Get(c *cli.Context) {
 	client := core.NewDownloader()
 	client.Queue.AddLinks(links, 1)
 	client.Start(true)
+	con := console.NewConsole()
+	fn := func(name string, progress float64, total float64) string {
+		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.HumanSize(total))
+	}
 	for {
 		select {
 		case <-client.Finished():
 			return
 		case download := <-client.NewDownload():
+			id := con.AddRows(
+				// fmt.Sprintf("%s:", download.Filename()),
+				fn(download.Filename(), 0, float64(download.Length())),
+			)[0]
 			download.UpdateInterval = 500 * time.Millisecond
 			download.AddProgressListener(core.ProgressListener{
 				Update: func(progress float64, total float64) {
-					log.Tracef("%v - progress: %.2f%%", download.Filename(), progress/total*100)
+					con.EditRow(id, fn(download.Filename(), progress, total))
 				},
 				Done: func(dur time.Duration, err error) {
 					if err != nil {
-						log.Errorf("Error! %v", err)
+						con.EditRow(id, fmt.Sprintf("%s: error: %v", download.Filename(), err))
 					} else {
-						log.Infof("Done! Duration: %v", dur)
+						con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.Filename(), dur))
 					}
 				},
 			})
