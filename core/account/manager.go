@@ -72,6 +72,9 @@ func managerFor(file string) *real_manager {
 	mtx.Lock()
 	defer mtx.Unlock()
 	if managers[file] == nil {
+		if err := os.MkdirAll(path.Dir(file), 0755); err != nil {
+			log.Errorf("Could not create parent dirs of %s", file)
+		}
 		m := &real_manager{
 			queue: make(chan *asyncJob),
 			file:  file,
