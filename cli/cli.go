@@ -135,12 +135,10 @@ func linksFromFile(links *[]string, f string) error {
 
 func Get(c *cli.Context) {
 	files := c.Args()
-	fmt.Println("hallo\n")
 	links := make([]string, 0, 256)
 	for _, file := range files {
 		linksFromFile(&links, file)
 	}
-	fmt.Printf("%v\n", links)
 	client := core.NewDownloader()
 	client.Queue.AddLinks(links, 1)
 	client.Start(true)
