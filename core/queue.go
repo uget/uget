@@ -2,32 +2,47 @@ package core
 
 import (
 	log "github.com/cihub/seelog"
-	pq "github.com/oleiade/lane"
+	// pq "github.com/oleiade/lane"
+	"github.com/eapache/channels"
+	"sync"
 )
 
 type Queue struct {
-	pQueue *pq.PQueue
+	buffer  *channels.InfiniteChannel
+	channel chan *FileSpec
+	wg      *sync.WaitGroup
 }
 
 func NewQueue() *Queue {
-	return &Queue{
-		// TODO: implement own PQueue.
-		// lane's pqueue only considers the integer value priority.
-		// What we want is a priority queue that considers the integer value first,
-		// and the order the links came in / alphabetical order second.
-		pQueue: pq.NewPQueue(pq.MAXPQ),
+	q := &Queue{
+		buffer:  channels.NewInfiniteChannel(),
+		channel: make(chan *FileSpec),
+		wg:      new(sync.WaitGroup),
 	}
+	channels.Unwrap(q.buffer, q.channel)
+	return q
 }
 
-func (q *Queue) Pop() *FileSpec {
-	object, _ := q.pQueue.Pop()
-	if object != nil {
-		fs := object.(*FileSpec)
-		log.Tracef("Queue.Pop: Popped file: %v", fs.URL)
-		return fs
-	}
-	log.Tracef("Queue.Pop: Nothing popped.")
-	return nil
+func (q *Queue) Pop() <-chan *FileSpec {
+	return q.channel
+}
+
+func (q *Queue) Close() {
+	q.buffer.Close()
+}
+
+func (q *Queue) Wait() {
+	q.wg.Wait()
+}
+
+func (q *Queue) Done() {
+	q.wg.Done()
+}
+
+func (q *Queue) Push(f *FileSpec) {
+	q.wg.Add(1)
+	q.buffer.In() <- f
+	log.Tracef("Added link to queue: %v", f.URL)
 }
 
 func (q *Queue) AddLinks(links []string, prio int) ([]*FileSpec, error) {
@@ -35,13 +50,12 @@ func (q *Queue) AddLinks(links []string, prio int) ([]*FileSpec, error) {
 	if err == nil {
 		for _, f := range fs {
 			f.Priority = prio
-			log.Tracef("Added link to queue: %v", f.URL)
-			q.pQueue.Push(f, prio)
+			q.Push(f)
 		}
 	}
 	return fs, err
 }
 
 func (q *Queue) FileCount() int {
-	return q.pQueue.Size()
+	return q.buffer.Len()
 }

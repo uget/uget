@@ -2,29 +2,32 @@ package core
 
 import (
 	log "github.com/cihub/seelog"
+	"github.com/eapache/channels"
 	"github.com/uget/uget/core/action"
 	"net/http"
 	"net/http/cookiejar"
-	"sync"
 )
 
 type Downloader struct {
-	Queue           *Queue
-	Client          *http.Client
-	MaxDownloads    int
-	downloadChannel chan *Download
-	done            chan bool
+	Queue        *Queue
+	Client       *http.Client
+	MaxDownloads int
+	dlChannel    chan *Download
+	dlBuffer     *channels.RingChannel
+	done         chan struct{}
 }
 
 func NewDownloader() *Downloader {
 	jar, _ := cookiejar.New(nil)
 	dl := &Downloader{
-		Queue:           NewQueue(),
-		Client:          &http.Client{Jar: jar},
-		MaxDownloads:    3,
-		downloadChannel: make(chan *Download, 3),
-		done:            make(chan bool, 1),
+		Queue:        NewQueue(),
+		Client:       &http.Client{Jar: jar},
+		MaxDownloads: 3,
+		dlChannel:    make(chan *Download),
+		dlBuffer:     channels.NewRingChannel(5),
+		done:         make(chan struct{}, 1),
 	}
+	channels.Unwrap(dl.dlBuffer, dl.dlChannel)
 	for _, p := range providers {
 		TryLogin(p, dl)
 	}
@@ -44,28 +47,25 @@ func (d *Downloader) StartSync() {
 	<-d.done
 }
 
-func (d *Downloader) Finished() <-chan bool {
+func (d *Downloader) Finished() <-chan struct{} {
 	return d.done
 }
 
 func (d *Downloader) work() {
-	for fs := d.Queue.Pop(); fs != nil; fs = d.Queue.Pop() {
-		d.Download(fs)
+	for f := range d.Queue.Pop() {
+		d.Download(f)
+		d.Queue.Done()
 	}
 }
 
 func (d *Downloader) StartAsync() {
-	var wg sync.WaitGroup
-	wg.Add(d.MaxDownloads)
 	for i := 0; i < d.MaxDownloads; i++ {
-		go func() {
-			defer wg.Done()
-			d.work()
-		}()
+		go d.work()
 	}
 	go func() {
-		wg.Wait()
-		d.done <- true
+		d.Queue.Wait()
+		d.Queue.Close()
+		close(d.done)
 	}()
 }
 
@@ -91,7 +91,7 @@ func (d *Downloader) Download(fs *FileSpec) {
 			d.Download(fs2)
 		case action.GOAL:
 			download := &Download{Response: resp}
-			d.downloadChannel <- download
+			d.dlBuffer.In() <- download
 			download.Start()
 		case action.BUNDLE:
 			log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
@@ -104,5 +104,5 @@ func (d *Downloader) Download(fs *FileSpec) {
 }
 
 func (d *Downloader) NewDownload() <-chan *Download {
-	return d.downloadChannel
+	return d.dlChannel
 }
