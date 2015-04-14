@@ -25,12 +25,12 @@ type Provider interface {
 }
 
 type LoginProvider interface {
-	Name() string
+	Provider
 	Login(*Downloader)
 }
 
 type PersistentProvider interface {
-	Name() string
+	Provider
 	AddAccount(Prompter)
 
 	// returns a pointer to an internal account struct
