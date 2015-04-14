@@ -70,7 +70,7 @@ func (d *Download) Start() {
 		case <-time.After(d.UpdateInterval):
 			stat, err := f.Stat()
 			if err == nil {
-				d.update(float64(stat.Size()), float64(d.Response.ContentLength))
+				d.update(float64(stat.Size()), float64(d.Length()))
 			}
 		case err := <-done:
 			d.done(time.Now().Sub(start), err)
@@ -102,4 +102,8 @@ func (d *Download) Filename() string {
 
 func (d *Download) Path() string {
 	return path.Join(d.Directory, d.Filename())
+}
+
+func (d *Download) Length() int64 {
+	return d.Response.ContentLength
 }
