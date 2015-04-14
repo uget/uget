@@ -55,7 +55,7 @@ func (d *Download) Start() {
 	if err == nil {
 		if fi.Size() == d.Response.ContentLength {
 			// File already exists
-			// log.Debugf("%v already exists... Returning", d.Filename())
+			log.Debugf("%v already exists... Returning", d.Filename())
 			d.skip()
 			return
 		}
