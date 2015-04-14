@@ -10,6 +10,7 @@ import (
 	"github.com/uget/uget/core/account"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -166,12 +167,40 @@ func Get(c *cli.Context) {
 
 func AddAccount(c *cli.Context) {
 	p := c.Args().First()
-	provider := core.GetProvider(p)
-	if provider == nil {
-		fmt.Printf("No provider found for %s\n", p)
-		return
+	mp := map[int]core.PersistentProvider{}
+	var provider core.Provider
+	i := 0
+	if p == "" {
+		for _, p := range core.AllProviders() {
+			if pp, ok := p.(core.PersistentProvider); ok {
+				i++
+				mp[i] = pp
+			}
+		}
+		// fmt.Println("Here is a list of available providers:")
+		for index, pp := range mp {
+			fmt.Printf("- %s (%v)\n", pp.Name(), index)
+		}
+		fmt.Print("Choose a provider from above: ")
+		buf := make([]byte, 256)
+		read, _ := os.Stdin.Read(buf)
+		str := strings.TrimSpace(string(buf[:read]))
+		if len(str) == 0 {
+			fmt.Println("No input provided.")
+			os.Exit(1)
+		} else if _, err := fmt.Sscanf(str, "%d", &i); err == nil {
+			provider = mp[i]
+		} else {
+			provider = core.GetProvider(str)
+		}
+	} else {
+		provider = core.GetProvider(p)
+		if provider == nil {
+			fmt.Printf("No provider found for %s\n", p)
+			return
+		}
 	}
-	prompter := NewCliPrompter(c, p)
+	prompter := NewCliPrompter(c, provider.Name())
 	if !core.TryAddAccount(provider, prompter) {
 		fmt.Printf("This provider does not support accounts.\n")
 	}

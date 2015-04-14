@@ -22,7 +22,7 @@ uget get CONTAINER_SPEC...
 
 Add your credentials for a provider. You will be prompted.
 ```bash
-uget accounts add PROVIDER
+uget accounts add [PROVIDER]
 ```
 
 List your saved accounts.
