@@ -1,7 +1,7 @@
 package core
 
 import (
-	log "github.com/cihub/seelog"
+	log "github.com/Sirupsen/logrus"
 	"io"
 	"net/http"
 	"os"

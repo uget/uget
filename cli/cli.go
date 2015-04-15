@@ -3,7 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	log "github.com/cihub/seelog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
@@ -119,7 +119,7 @@ func Push(c *cli.Context) {
 func linksFromFile(links *[]string, f string) error {
 	file, err := os.Open(f)
 	if err != nil {
-		log.Criticalf("Could not open file %s", f)
+		log.WithField("file", f).Fatal("could not open")
 		return err
 	}
 	defer file.Close()
@@ -130,8 +130,7 @@ func linksFromFile(links *[]string, f string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Critical(err)
-		return err
+		log.Fatal(err)
 	}
 	return nil
 }

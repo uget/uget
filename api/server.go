@@ -3,8 +3,8 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/Unknwon/macaron"
-	log "github.com/cihub/seelog"
 	"github.com/uget/cnlv2"
 	"github.com/uget/uget/core"
 	"net/http"

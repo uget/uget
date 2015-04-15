@@ -1,28 +1,22 @@
 package utils
 
 import (
-	"fmt"
-	"github.com/cihub/seelog"
+	"github.com/Sirupsen/logrus"
+	"os"
 	path "path/filepath"
 	"time"
 )
 
-const loggerConfig = `
-<seelog>
-  <outputs>
-   <file path="%s" formatid="logformat" />
-  </outputs>
-  <formats>
-    <format id="logformat" format="%%EscM(49)%%Date(02.01.2006 15:04:05.000) [%%Level] %%Msg%%EscM(0)%%n"/>
-  </formats>
-</seelog>
-`
-
 func InitLogger() {
 	logfile := path.Join(app.UserLog(), time.Now().Local().Format("2006-01-02.log"))
-	logger, err := seelog.LoggerFromConfigAsString(fmt.Sprintf(loggerConfig, logfile))
-	if err != nil {
-		seelog.Error(err)
+	err1 := os.MkdirAll(path.Dir(logfile), 0755)
+	f, err2 := os.OpenFile(logfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err1 != nil || err2 != nil {
+		logrus.SetOutput(os.Stderr)
+		logrus.WithFields(logrus.Fields{
+			"file": logfile,
+		}).Error("Could not create file or parent directories.")
+	} else {
+		logrus.SetOutput(f)
 	}
-	seelog.ReplaceLogger(logger)
 }

@@ -1,7 +1,7 @@
 package core
 
 import (
-	log "github.com/cihub/seelog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/eapache/channels"
 	"github.com/uget/uget/core/action"
 	"net/http"

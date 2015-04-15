@@ -2,7 +2,7 @@ package account
 
 import (
 	"encoding/json"
-	log "github.com/cihub/seelog"
+	log "github.com/Sirupsen/logrus"
 	"github.com/howeyc/fsnotify"
 	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils"

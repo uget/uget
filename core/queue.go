@@ -1,7 +1,7 @@
 package core
 
 import (
-	log "github.com/cihub/seelog"
+	log "github.com/Sirupsen/logrus"
 	// pq "github.com/oleiade/lane"
 	"github.com/eapache/channels"
 	"sync"
@@ -42,7 +42,7 @@ func (q *Queue) Done() {
 func (q *Queue) Push(f *FileSpec) {
 	q.wg.Add(1)
 	q.buffer.In() <- f
-	log.Tracef("Added link to queue: %v", f.URL)
+	log.WithField("url", f.URL).Debug("added link to queue")
 }
 
 func (q *Queue) AddLinks(links []string, prio int) ([]*FileSpec, error) {
