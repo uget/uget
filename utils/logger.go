@@ -19,4 +19,5 @@ func InitLogger() {
 	} else {
 		logrus.SetOutput(f)
 	}
+	logrus.SetLevel(logrus.DebugLevel)
 }

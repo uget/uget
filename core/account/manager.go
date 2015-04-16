@@ -22,7 +22,7 @@ type Account struct {
 	Provider string      `json:"provider"`
 	Data     interface{} `json:"data"`
 }
-type accstore map[string]Account
+type accstore map[string]*Account
 type root map[string]accstore
 
 func (a *Account) UnmarshalJSON(bs []byte) error {
@@ -93,9 +93,19 @@ func (m *Manager) Accounts(store interface{}) {
 }
 
 func (m *Manager) accounts(store interface{}) {
-	t := reflect.Indirect(reflect.ValueOf(store))
-	for _, v := range m.root[m.Provider.Name()] {
-		t.Set(reflect.Append(t, reflect.Indirect(reflect.ValueOf(v.Data))))
+	arr := reflect.Indirect(reflect.ValueOf(store))
+	if arr.Kind() != reflect.Slice {
+		panic("Must provide a slice")
+	}
+	isStrSlice := arr.Type().String() == "[]string"
+	for id, v := range m.root[m.Provider.Name()] {
+		var data interface{}
+		if isStrSlice {
+			data = id
+		} else {
+			data = v.Data
+		}
+		arr.Set(reflect.Append(arr, reflect.Indirect(reflect.ValueOf(data))))
 	}
 }
 
@@ -152,7 +162,7 @@ func (m *Manager) AddAccount(id string, store interface{}) {
 }
 
 func (m *Manager) addAccount(id string, store interface{}) {
-	m.p()[id] = Account{Provider: m.Provider.Name(), Data: store}
+	m.p()[id] = &Account{Provider: m.Provider.Name(), Data: store}
 }
 
 func (m *Manager) p() accstore {
@@ -240,8 +250,11 @@ func (m *real_manager) dispatch() {
 			log.Errorf("Error watching %s: %v", m.file, err)
 		case job := <-m.queue:
 			job.work()
+			l := log.WithField("file", m.file)
 			if err := m.save(); err != nil {
-				log.Errorf("Error saving file %s: %s", m.file, err)
+				l.WithField("err", err).Error("save ERROR!")
+			} else {
+				l.Debug("save SUCCESS!")
 			}
 			// this is after m.save() because of race conditions that occur if main thread exits.
 			// TODO: fix the race condition and move this up.
