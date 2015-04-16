@@ -189,6 +189,10 @@ func SelectAccount(c *cli.Context) {
 	ids := []string{}
 	mgr.Accounts(&ids)
 	i := userSelection(ids, "Select an account")
+	if i < 0 {
+		fmt.Fprintln(os.Stderr, "Invalid selection")
+		os.Exit(1)
+	}
 	mgr.SelectAccount(ids[i])
 }
 
@@ -199,7 +203,7 @@ func AddAccount(c *cli.Context) {
 	}
 	prompter := NewCliPrompter(c, provider.Name())
 	if !core.TryAddAccount(provider, prompter) {
-		fmt.Printf("This provider does not support accounts.\n")
+		fmt.Fprintln(os.Stderr, "This provider does not support accounts.\n")
 	}
 }
 
@@ -211,7 +215,12 @@ func selectPProvider(arg string) core.PersistentProvider {
 				ps = append(ps, pp.Name())
 			}
 		}
-		arg = ps[userSelection(ps, "Choose a provider")]
+		i := userSelection(ps, "Choose a provider")
+		if i < 0 {
+			fmt.Fprintln(os.Stderr, "Invalid selection.\n")
+			os.Exit(1)
+		}
+		arg = ps[i]
 	}
 	provider := core.GetProvider(arg).(core.PersistentProvider)
 	if provider == nil {
