@@ -18,7 +18,7 @@ func defaultFile() string {
 }
 
 type Account struct {
-	// Selected bool        `json:"selected,omitempty"`
+	Selected bool        `json:"selected,omitempty"`
 	Provider string      `json:"provider"`
 	Data     interface{} `json:"data"`
 }
@@ -28,8 +28,8 @@ type root map[string]accstore
 func (a *Account) UnmarshalJSON(bs []byte) error {
 	var j struct {
 		Provider string
-		// Selected bool
-		Data *json.RawMessage
+		Selected bool
+		Data     *json.RawMessage
 	}
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
@@ -37,7 +37,7 @@ func (a *Account) UnmarshalJSON(bs []byte) error {
 	data := core.GetProvider(j.Provider).(core.PersistentProvider).NewTemplate()
 	json.Unmarshal(*j.Data, data)
 	a.Provider = j.Provider
-	// a.Selected = j.Selected
+	a.Selected = j.Selected
 	a.Data = data
 	return nil
 }
@@ -99,6 +99,52 @@ func (m *Manager) accounts(store interface{}) {
 	}
 }
 
+func (m *Manager) SelectAccount(id string) bool {
+	var found bool
+	<-m.job(func() {
+		found = m.selectAccount(id)
+	})
+	return found
+}
+
+func (m *Manager) selectAccount(id string) bool {
+	found := false
+	for k, v := range m.p() {
+		v.Selected = false
+		if id == k {
+			v.Selected = true
+			found = true
+		}
+	}
+	return found
+}
+
+// Get the selected account and copy its fields to `store`
+// Returns 2 bools:
+// The first indicates whether an account was found at all.
+// The second indicates whether there's a selected account.
+func (m *Manager) SelectedAccount(store interface{}) (bool, bool) {
+	var found, selected bool
+	<-m.job(func() {
+		found, selected = m.selectedAccount(store)
+	})
+	return found, selected
+}
+
+func (m *Manager) selectedAccount(store interface{}) (bool, bool) {
+	none := true
+	for _, v := range m.p() {
+		if v.Selected {
+			icopy(store, v.Data)
+			return true, true
+		} else if none {
+			icopy(store, v.Data)
+			none = false
+		}
+	}
+	return !none, false
+}
+
 func (m *Manager) AddAccount(id string, store interface{}) {
 	<-m.job(func() {
 		m.addAccount(id, store)
@@ -114,6 +160,26 @@ func (m *Manager) p() accstore {
 		m.root[m.Provider.Name()] = accstore{}
 	}
 	return m.root[m.Provider.Name()]
+}
+
+func icopy(dst, src interface{}) {
+	if reflect.TypeOf(dst) != reflect.TypeOf(src) {
+		panic("Unequal types")
+	}
+	tv := reflect.Indirect(reflect.ValueOf(src))
+	av := reflect.Indirect(reflect.ValueOf(dst))
+	for i := 0; i < tv.NumField(); i++ {
+		av.Field(i).Set(tv.Field(i))
+	}
+}
+
+func (m *Manager) job(f func()) <-chan bool {
+	job := &asyncJob{
+		work: f,
+		done: make(chan bool, 1),
+	}
+	m.queue <- job
+	return job.done
 }
 
 func (m *real_manager) save() error {
@@ -152,15 +218,6 @@ func (m *real_manager) reload() {
 		return
 	}
 	json.Unmarshal(bytes, &m.root)
-}
-
-func (m *Manager) job(f func()) <-chan bool {
-	job := &asyncJob{
-		work: f,
-		done: make(chan bool, 1),
-	}
-	m.queue <- job
-	return job.done
 }
 
 func (m *real_manager) dispatch() {
