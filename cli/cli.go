@@ -49,6 +49,12 @@ func CreateApp() *cli.App {
 					SkipFlagParsing: true,
 				},
 				{
+					Name:            "select",
+					Usage:           "select an account",
+					Action:          SelectAccount,
+					SkipFlagParsing: true,
+				},
+				{
 					Name:            "list",
 					Usage:           "list all accounts",
 					Action:          ListAccounts,
@@ -177,45 +183,66 @@ func Get(c *cli.Context) {
 	}
 }
 
+func SelectAccount(c *cli.Context) {
+	provider := selectPProvider(c.Args().First())
+	mgr := account.ManagerFor("", provider)
+	ids := []string{}
+	mgr.Accounts(&ids)
+	i := userSelection(ids, "Select an account")
+	mgr.SelectAccount(ids[i])
+}
+
 func AddAccount(c *cli.Context) {
-	p := c.Args().First()
-	mp := map[int]core.PersistentProvider{}
-	var provider core.Provider
-	i := 0
-	if p == "" {
-		for _, p := range core.AllProviders() {
-			if pp, ok := p.(core.PersistentProvider); ok {
-				i++
-				mp[i] = pp
-			}
-		}
-		// fmt.Println("Here is a list of available providers:")
-		for index, pp := range mp {
-			fmt.Printf("- %s (%v)\n", pp.Name(), index)
-		}
-		fmt.Print("Choose a provider from above: ")
-		buf := make([]byte, 256)
-		read, _ := os.Stdin.Read(buf)
-		str := strings.TrimSpace(string(buf[:read]))
-		if len(str) == 0 {
-			fmt.Println("No input provided.")
-			os.Exit(1)
-		} else if _, err := fmt.Sscanf(str, "%d", &i); err == nil {
-			provider = mp[i]
-		} else {
-			provider = core.GetProvider(str)
-		}
-	} else {
-		provider = core.GetProvider(p)
-		if provider == nil {
-			fmt.Printf("No provider found for %s\n", p)
-			return
-		}
+	provider := selectPProvider(c.Args().First())
+	if provider == nil {
+		return
 	}
 	prompter := NewCliPrompter(c, provider.Name())
 	if !core.TryAddAccount(provider, prompter) {
 		fmt.Printf("This provider does not support accounts.\n")
 	}
+}
+
+func selectPProvider(arg string) core.PersistentProvider {
+	if arg == "" {
+		ps := make([]string, 0)
+		for _, p := range core.AllProviders() {
+			if pp, ok := p.(core.PersistentProvider); ok {
+				ps = append(ps, pp.Name())
+			}
+		}
+		arg = ps[userSelection(ps, "Choose a provider")]
+	}
+	provider := core.GetProvider(arg).(core.PersistentProvider)
+	if provider == nil {
+		fmt.Printf("No provider found for %s\n", arg)
+	}
+	return provider
+}
+
+func userSelection(arr []string, prompt string) int {
+	for i, x := range arr {
+		fmt.Printf("- %s (%v)\n", x, i+1)
+	}
+	i := -1
+	fmt.Printf("%s: ", prompt)
+	buf := make([]byte, 256)
+	read, err := os.Stdin.Read(buf)
+	if err != nil {
+		panic(err)
+	}
+	str := strings.TrimSpace(string(buf[:read]))
+	if len(str) > 0 {
+		if _, err := fmt.Sscanf(str, "%d", &i); err != nil {
+			for index, s := range arr {
+				if s == str {
+					i = index + 1
+					break
+				}
+			}
+		}
+	}
+	return i - 1
 }
 
 func ListAccounts(c *cli.Context) {
