@@ -33,7 +33,7 @@ func NewDownloadFromResponse(r *http.Response) *Download {
 	}
 }
 
-func (d *Download) OnUpdate(f func(float64, float64)) {
+func (d *Download) OnUpdate(f func(int64, int64)) {
 	d.On(eUpdate, f)
 }
 
@@ -75,7 +75,7 @@ func (d *Download) Start() {
 		case <-time.After(d.UpdateInterval):
 			stat, err := f.Stat()
 			if err == nil {
-				d.Emit(eUpdate, float64(stat.Size()), float64(d.Length()))
+				d.Emit(eUpdate, stat.Size(), d.Length())
 			}
 		case err := <-done:
 			d.Emit(eDone, time.Now().Sub(start), err)

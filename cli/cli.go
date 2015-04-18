@@ -160,8 +160,8 @@ func Get(c *cli.Context) {
 			// fmt.Sprintf("%s:", download.Filename()),
 			fprog(download.Filename(), 0, float64(download.Length())),
 		)[0]
-		download.OnUpdate(func(progress float64, total float64) {
-			con.EditRow(id, fprog(download.Filename(), progress, total))
+		download.OnUpdate(func(progress int64, total int64) {
+			con.EditRow(id, fprog(download.Filename(), float64(progress), float64(total)))
 		})
 		download.OnSkip(func() {
 			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
