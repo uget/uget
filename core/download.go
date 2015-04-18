@@ -18,6 +18,7 @@ type Download struct {
 	Response       *http.Response
 	Directory      string
 	filename       string
+	Skip           bool
 }
 
 const (
@@ -50,7 +51,7 @@ func (d *Download) Start() {
 	defer d.Response.Body.Close()
 	fi, err := os.Stat(d.Path())
 	if err == nil {
-		if fi.Size() == d.Response.ContentLength {
+		if d.Skip && fi.Size() == d.Response.ContentLength {
 			// File already exists
 			log.Debugf("%v already exists... Returning", d.Filename())
 			d.Emit(eSkip)

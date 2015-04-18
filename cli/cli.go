@@ -22,7 +22,9 @@ type Server struct {
 	BindAddr string `short:"b" long:"bind" description:"address to bind the server to"`
 }
 
-type Get struct{}
+type Get struct {
+	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
+}
 type Daemon struct{}
 type Push struct{}
 
