@@ -65,6 +65,7 @@ func (d *Download) Start() {
 		d.Emit(eDone, 0, err)
 		return
 	}
+	defer f.Close()
 	done := make(chan error, 1)
 	start := time.Now()
 	go func() {
