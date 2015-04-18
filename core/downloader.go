@@ -2,8 +2,8 @@ package core
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/chuckpreslar/emission"
 	"github.com/eapache/channels"
+	"github.com/muja/emission"
 	"github.com/uget/uget/core/action"
 	"net/http"
 	"net/http/cookiejar"

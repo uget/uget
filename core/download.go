@@ -2,7 +2,7 @@ package core
 
 import (
 	log "github.com/Sirupsen/logrus"
-	"github.com/chuckpreslar/emission"
+	"github.com/muja/emission"
 	"io"
 	"net/http"
 	"os"
