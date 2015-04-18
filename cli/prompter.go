@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"github.com/codegangsta/cli"
 	"github.com/howeyc/gopass"
 	"github.com/uget/uget/core"
 	"os"
@@ -11,23 +10,20 @@ import (
 )
 
 type CliPrompter struct {
-	Context *cli.Context
-	prefix  string
+	prefix    string
+	overrides map[string]string
 }
 
-func NewCliPrompter(c *cli.Context, prefix string) *CliPrompter {
-	return &CliPrompter{
-		Context: c,
-		prefix:  prefix,
-	}
+func NewCliPrompter(prefix string, overrides map[string]string) *CliPrompter {
+	return &CliPrompter{prefix, overrides}
 }
 
 func (c CliPrompter) Get(fields []core.Field) map[string]string {
 	reader := bufio.NewReader(os.Stdin)
 	values := map[string]string{}
 	for _, field := range fields {
-		if c.Context.IsSet("--" + field.Key) {
-			values[field.Key] = c.Context.String("--" + field.Key)
+		if value, ok := c.overrides[field.Key]; ok {
+			values[field.Key] = value
 		} else {
 			var deftext string = ""
 			if field.Value != "" {
@@ -55,7 +51,7 @@ func (c CliPrompter) Get(fields []core.Field) map[string]string {
 }
 
 func (c CliPrompter) Error(display string) {
-	fmt.Fprintf(os.Stderr, "[%s] Error occurred: %s\n", c.prefix, display)
+	fmt.Fprintf(os.Stderr, "[%s] Error: %s\n", c.prefix, display)
 }
 
 func (c CliPrompter) Success() {

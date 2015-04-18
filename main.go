@@ -9,5 +9,5 @@ import (
 
 func main() {
 	utils.InitLogger()
-	cli.CreateApp().Run(os.Args)
+	os.Exit(cli.RunApp(os.Args))
 }
