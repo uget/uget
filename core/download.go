@@ -2,6 +2,7 @@ package core
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/chuckpreslar/emission"
 	"io"
 	"net/http"
 	"os"
@@ -12,41 +13,36 @@ import (
 )
 
 type Download struct {
-	ProgressListeners []ProgressListener
-	UpdateInterval    time.Duration
-	Response          *http.Response
-	Directory         string
-	filename          string
+	*emission.Emitter
+	UpdateInterval time.Duration
+	Response       *http.Response
+	Directory      string
+	filename       string
 }
 
-type ProgressListener struct {
-	Update func(float64, float64)
-	Done   func(time.Duration, error)
-	Skip   func()
-}
+const (
+	eUpdate = iota
+	eDone
+	eSkip
+)
 
-func (d *Download) update(f1 float64, f2 float64) {
-	for _, x := range d.ProgressListeners {
-		if x.Update != nil {
-			x.Update(f1, f2)
-		}
+func NewDownloadFromResponse(r *http.Response) *Download {
+	return &Download{
+		Emitter:  emission.NewEmitter(),
+		Response: r,
 	}
 }
 
-func (d *Download) done(dur time.Duration, err error) {
-	for _, x := range d.ProgressListeners {
-		if x.Done != nil {
-			x.Done(dur, err)
-		}
-	}
+func (d *Download) OnUpdate(f func(float64, float64)) {
+	d.On(eUpdate, f)
 }
 
-func (d *Download) skip() {
-	for _, x := range d.ProgressListeners {
-		if x.Skip != nil {
-			x.Skip()
-		}
-	}
+func (d *Download) OnDone(f func(time.Duration, error)) {
+	d.On(eDone, f)
+}
+
+func (d *Download) OnSkip(f func()) {
+	d.On(eSkip, f)
 }
 
 func (d *Download) Start() {
@@ -56,16 +52,16 @@ func (d *Download) Start() {
 		if fi.Size() == d.Response.ContentLength {
 			// File already exists
 			log.Debugf("%v already exists... Returning", d.Filename())
-			d.skip()
+			d.Emit(eSkip)
 			return
 		}
 	} else if !os.IsNotExist(err) {
-		d.done(0, err)
+		d.Emit(eDone, 0, err)
 		return
 	}
 	f, err := os.Create(d.Path())
 	if err != nil {
-		d.done(0, err)
+		d.Emit(eDone, 0, err)
 		return
 	}
 	done := make(chan error, 1)
@@ -79,17 +75,13 @@ func (d *Download) Start() {
 		case <-time.After(d.UpdateInterval):
 			stat, err := f.Stat()
 			if err == nil {
-				d.update(float64(stat.Size()), float64(d.Length()))
+				d.Emit(eUpdate, float64(stat.Size()), float64(d.Length()))
 			}
 		case err := <-done:
-			d.done(time.Now().Sub(start), err)
+			d.Emit(eDone, time.Now().Sub(start), err)
 			return
 		}
 	}
-}
-
-func (d *Download) AddProgressListener(listener ProgressListener) {
-	d.ProgressListeners = append(d.ProgressListeners, listener)
 }
 
 func (d *Download) Filename() string {

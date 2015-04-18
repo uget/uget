@@ -151,36 +151,30 @@ func Get(c *cli.Context) {
 	client.Queue.AddLinks(links, 1)
 	client.Start(true)
 	con := console.NewConsole()
-	fn := func(name string, progress float64, total float64) string {
+	fprog := func(name string, progress float64, total float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.HumanSize(total))
 	}
-	for {
-		select {
-		case <-client.Finished():
-			return
-		case download := <-client.NewDownload():
-			id := con.AddRows(
-				// fmt.Sprintf("%s:", download.Filename()),
-				fn(download.Filename(), 0, float64(download.Length())),
-			)[0]
-			download.UpdateInterval = 500 * time.Millisecond
-			download.AddProgressListener(core.ProgressListener{
-				Update: func(progress float64, total float64) {
-					con.EditRow(id, fn(download.Filename(), progress, total))
-				},
-				Skip: func() {
-					con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
-				},
-				Done: func(dur time.Duration, err error) {
-					if err != nil {
-						con.EditRow(id, fmt.Sprintf("%s: error: %v", download.Filename(), err))
-					} else {
-						con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.Filename(), dur))
-					}
-				},
-			})
-		}
-	}
+	client.OnDownload(func(download *core.Download) {
+		download.UpdateInterval = 500 * time.Millisecond
+		id := con.AddRows(
+			// fmt.Sprintf("%s:", download.Filename()),
+			fprog(download.Filename(), 0, float64(download.Length())),
+		)[0]
+		download.OnUpdate(func(progress float64, total float64) {
+			con.EditRow(id, fprog(download.Filename(), progress, total))
+		})
+		download.OnSkip(func() {
+			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
+		})
+		download.OnDone(func(dur time.Duration, err error) {
+			if err != nil {
+				con.EditRow(id, fmt.Sprintf("%s: error: %v", download.Filename(), err))
+			} else {
+				con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.Filename(), dur))
+			}
+		})
+	})
+	<-client.Finished()
 }
 
 func SelectAccount(c *cli.Context) {

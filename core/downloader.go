@@ -2,6 +2,7 @@ package core
 
 import (
 	log "github.com/Sirupsen/logrus"
+	"github.com/chuckpreslar/emission"
 	"github.com/eapache/channels"
 	"github.com/uget/uget/core/action"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 )
 
 type Downloader struct {
+	*emission.Emitter
 	Queue        *Queue
 	Client       *http.Client
 	MaxDownloads int
@@ -17,9 +19,14 @@ type Downloader struct {
 	done         chan struct{}
 }
 
+const (
+	eDownload = iota
+)
+
 func NewDownloader() *Downloader {
 	jar, _ := cookiejar.New(nil)
 	dl := &Downloader{
+		Emitter:      emission.NewEmitter(),
 		Queue:        NewQueue(),
 		Client:       &http.Client{Jar: jar},
 		MaxDownloads: 3,
@@ -90,8 +97,8 @@ func (d *Downloader) Download(fs *FileSpec) {
 			log.Debugf("Got redirect instruction from %v provider. Location: %v", p.Name(), fs2.URL)
 			d.Download(fs2)
 		case action.GOAL:
-			download := &Download{Response: resp}
-			d.dlBuffer.In() <- download
+			download := NewDownloadFromResponse(resp)
+			d.Emit(eDownload, download)
 			download.Start()
 		case action.BUNDLE:
 			log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
@@ -103,6 +110,6 @@ func (d *Downloader) Download(fs *FileSpec) {
 	})
 }
 
-func (d *Downloader) NewDownload() <-chan *Download {
-	return d.dlChannel
+func (d *Downloader) OnDownload(f func(*Download)) {
+	d.On(eDownload, f)
 }
