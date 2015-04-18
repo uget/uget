@@ -47,6 +47,7 @@ func (d *Download) OnSkip(f func()) {
 
 func (d *Download) Start() {
 	log.Debugf("Downloading %v", d.Filename())
+	defer d.Response.Body.Close()
 	fi, err := os.Stat(d.Path())
 	if err == nil {
 		if fi.Size() == d.Response.ContentLength {
