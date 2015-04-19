@@ -32,7 +32,7 @@ It's simple! Install Go, setup your `$GOPATH` and run:
 
 ## 2.2 Code examples
 
-It's best to check out the [cli code](cli/cli.go) for examples.
+It's best to check out the [cli code](cli/commands.go) for examples.
 
 Downloading a multitude of links:
 
@@ -41,18 +41,22 @@ Downloading a multitude of links:
 links := ...
 // Then, create a new Downloader:
 client := core.NewDownloader()
-// Add those links to the downloader's queue:
+// Add those links to the downloader's queue (priority 1):
 client.Queue.AddLinks(links, 1)
-// Start asynchronously (async = true):
-client.Start(true)
-for {
-  select {
-  case <-client.Finished():
-    return
-  case download := <-client.NewDownload():
-    // use download for something.
-  }
-}
+// Register some callbacks:
+client.OnDownload(func(d *Download) {
+  // use download for something, e.g.
+  d.OnDone(func(d time.Duration, err error) {
+    if err != nil {
+      // download failed. Handle error.
+      return
+    }
+    // Download finished.
+  })
+})
+// Start downloader (synchronously, blocking).
+client.StartSync()
+// No downloads left, all jobs done.
 ```
 
 ## 2.3 CLI
