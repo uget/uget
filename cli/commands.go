@@ -126,8 +126,7 @@ func CmdGet(args []string, opts *Options) int {
 		exit = 1
 		con.AddRow(fmt.Sprintf("%v.", err))
 	})
-	client.Start(true)
-	<-client.Finished()
+	client.StartSync()
 	return exit
 }
 
