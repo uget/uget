@@ -21,6 +21,24 @@ type Download struct {
 	Skip           bool
 }
 
+// PassThru wraps an existing io.Reader.
+//
+// It simply forwards the Read() call, while displaying
+// the results from individual calls to it.
+type passThru struct {
+	io.Reader
+	total int64 // Total # of bytes transferred
+}
+
+// Read 'overrides' the underlying io.Reader's Read method.
+// This is the one that will be called by io.Copy(). We simply
+// use it to keep track of byte counts and then forward the call.
+func (pt *passThru) Read(p []byte) (int, error) {
+	n, err := pt.Reader.Read(p)
+	pt.total += int64(n)
+	return n, err
+}
+
 const (
 	eUpdate = iota
 	eDone
@@ -69,17 +87,15 @@ func (d *Download) Start() {
 	defer f.Close()
 	done := make(chan error, 1)
 	start := time.Now()
+	reader := passThru{Reader: d.Response.Body}
 	go func() {
-		_, err := io.Copy(f, d.Response.Body)
+		_, err := io.Copy(f, reader)
 		done <- err
 	}()
 	for {
 		select {
 		case <-time.After(d.UpdateInterval):
-			stat, err := f.Stat()
-			if err == nil {
-				d.Emit(eUpdate, stat.Size(), d.Length())
-			}
+			d.Emit(eUpdate, reader.total, d.Length())
 		case err := <-done:
 			d.Emit(eDone, time.Now().Sub(start), err)
 			return
