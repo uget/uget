@@ -87,7 +87,7 @@ func (d *Download) Start() {
 	defer f.Close()
 	done := make(chan error, 1)
 	start := time.Now()
-	reader := passThru{Reader: d.Response.Body}
+	reader := &passThru{Reader: d.Response.Body}
 	go func() {
 		_, err := io.Copy(f, reader)
 		done <- err
