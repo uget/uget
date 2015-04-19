@@ -68,22 +68,35 @@ func CmdSelectAccounts(args []string, opt *Options) int {
 	return 0
 }
 
-func CmdGet(files []string, opts *Options) int {
-	if len(files) == 0 {
-		fmt.Fprintln(os.Stderr, "No files provided")
+func CmdGet(args []string, opts *Options) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "No arguments provided")
 		return 1
 	}
-	links := make([]string, 0, 256)
-	for _, file := range files {
-		linksFromFile(&links, file)
+	var links []string
+	if opts.Get.Inline {
+		links = args
+	} else {
+		links = make([]string, 0, 256)
+		for _, file := range args {
+			err := linksFromFile(&links, file)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading links: %v\n", err)
+				return 1
+			}
+		}
 	}
 	client := core.NewDownloader()
-	client.Queue.AddLinks(links, 1)
-	client.Start(true)
+	_, err := client.Queue.AddLinks(links, 1)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
 	con := console.NewConsole()
 	fprog := func(name string, progress float64, total float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.HumanSize(total))
 	}
+	exit := 0
 	client.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
@@ -105,8 +118,17 @@ func CmdGet(files []string, opts *Options) int {
 			}
 		})
 	})
+	client.OnDeadend(func(fs *core.FileSpec) {
+		exit = 1
+		con.AddRow(fmt.Sprintf("%v: Reached deadend.", fs.URL))
+	})
+	client.OnError(func(fs *core.FileSpec, err error) {
+		exit = 1
+		con.AddRow(fmt.Sprintf("%v.", err))
+	})
+	client.Start(true)
 	<-client.Finished()
-	return 0
+	return exit
 }
 
 func CmdServer(args []string, opts *Options) int {

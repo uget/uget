@@ -12,7 +12,7 @@ import (
 func linksFromFile(links *[]string, f string) error {
 	file, err := os.Open(f)
 	if err != nil {
-		log.WithField("file", f).Fatal("could not open")
+		log.WithField("file", f).Error("could not open")
 		return err
 	}
 	defer file.Close()
@@ -23,7 +23,8 @@ func linksFromFile(links *[]string, f string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Error(err)
+		return err
 	}
 	return nil
 }

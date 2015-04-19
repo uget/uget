@@ -21,6 +21,8 @@ type Downloader struct {
 
 const (
 	eDownload = iota
+	eDeadend
+	eError
 )
 
 func NewDownloader() *Downloader {
@@ -30,11 +32,9 @@ func NewDownloader() *Downloader {
 		Queue:        NewQueue(),
 		Client:       &http.Client{Jar: jar},
 		MaxDownloads: 3,
-		dlChannel:    make(chan *Download),
 		dlBuffer:     channels.NewRingChannel(5),
 		done:         make(chan struct{}, 1),
 	}
-	channels.Unwrap(dl.dlBuffer, dl.dlChannel)
 	for _, p := range providers {
 		TryLogin(p, dl)
 	}
@@ -82,6 +82,7 @@ func (d *Downloader) Download(fs *FileSpec) {
 	resp, err := d.Client.Do(req)
 	if err != nil {
 		log.Errorf("Error while requesting %v: %v", fs.URL.String(), err)
+		d.Emit(eError, fs, err)
 		return
 	}
 	// Reverse iterate -> last provider is the default provider
@@ -104,6 +105,7 @@ func (d *Downloader) Download(fs *FileSpec) {
 			log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
 			d.Queue.AddLinks(a.Links, fs.Priority)
 		case action.DEADEND:
+			d.Emit(eDeadend, fs)
 			log.Debugf("Reached deadend (via %v provider).", p.Name())
 		}
 		return true
@@ -112,4 +114,12 @@ func (d *Downloader) Download(fs *FileSpec) {
 
 func (d *Downloader) OnDownload(f func(*Download)) {
 	d.On(eDownload, f)
+}
+
+func (d *Downloader) OnDeadend(f func(*FileSpec)) {
+	d.On(eDeadend, f)
+}
+
+func (d *Downloader) OnError(f func(*FileSpec, error)) {
+	d.On(eError, f)
 }

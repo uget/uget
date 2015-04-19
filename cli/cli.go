@@ -24,6 +24,7 @@ type Server struct {
 
 type Get struct {
 	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
+	Inline bool `short:"i" long:"inline" description:"Interpret arguments as URLs (instead of files)"`
 }
 type Daemon struct{}
 type Push struct{}
