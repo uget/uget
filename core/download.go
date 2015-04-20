@@ -52,7 +52,7 @@ func NewDownloadFromResponse(r *http.Response) *Download {
 	}
 }
 
-func (d *Download) OnUpdate(f func(int64, int64)) {
+func (d *Download) OnUpdate(f func(int64)) {
 	d.On(eUpdate, f)
 }
 
