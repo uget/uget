@@ -95,7 +95,7 @@ func (d *Download) Start() {
 	for {
 		select {
 		case <-time.After(d.UpdateInterval):
-			d.Emit(eUpdate, reader.total, d.Length())
+			d.Emit(eUpdate, reader.total)
 		case err := <-done:
 			d.Emit(eDone, time.Now().Sub(start), err)
 			return
