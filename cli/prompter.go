@@ -32,7 +32,12 @@ func (c CliPrompter) Get(fields []core.Field) map[string]string {
 			fmt.Printf("[%s] %s%s: ", c.prefix, field.Display, deftext)
 			var entered string
 			if field.Sensitive {
-				entered = string(gopass.GetPasswd())
+				t, err := gopass.GetPasswd()
+				if err != nil {
+					c.Error(err.Error())
+					return nil
+				}
+				entered = string(t)
 			} else {
 				line, err := reader.ReadString('\n')
 				if err != nil {
