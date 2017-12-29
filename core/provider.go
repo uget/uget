@@ -26,12 +26,13 @@ type Provider interface {
 
 type LoginProvider interface {
 	Provider
-	Login(*Downloader)
+	Login(*Downloader, *AccountManager)
 }
 
 type PersistentProvider interface {
 	Provider
-	AddAccount(Prompter)
+
+	NewAccount(Prompter) (string, interface{}, error)
 
 	// returns a pointer to an internal account struct
 	// which will be serialized / deserialized against
@@ -40,17 +41,27 @@ type PersistentProvider interface {
 }
 
 func TryLogin(p Provider, d *Downloader) bool {
-	lp, ok := p.(LoginProvider)
-	if ok {
-		lp.Login(d)
+	if lp, ok := p.(LoginProvider); ok {
+		if pp, ok := lp.(PersistentProvider); ok {
+			lp.Login(d, AccountManagerFor("", pp))
+		} else {
+			lp.Login(d, nil)
+		}
+		return true
 	}
-	return ok
+	return false
 }
 
 func TryAddAccount(p Provider, pr Prompter) bool {
-	lp, ok := p.(PersistentProvider)
+	pp, ok := p.(PersistentProvider)
 	if ok {
-		lp.AddAccount(pr)
+		if id, acc, err := pp.NewAccount(pr); err != nil {
+			AccountManagerFor("", pp).AddAccount(id, acc)
+			pr.Success()
+		} else {
+			pr.Error(err.Error())
+			return ok
+		}
 	}
 	return ok
 }

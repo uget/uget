@@ -1,10 +1,9 @@
-package account
+package core
 
 import (
 	"encoding/json"
 	log "github.com/Sirupsen/logrus"
 	"github.com/howeyc/fsnotify"
-	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils"
 	"io/ioutil"
 	"os"
@@ -34,7 +33,7 @@ func (a *Account) UnmarshalJSON(bs []byte) error {
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
 	}
-	data := core.GetProvider(j.Provider).(core.PersistentProvider).NewTemplate()
+	data := GetProvider(j.Provider).(PersistentProvider).NewTemplate()
 	json.Unmarshal(*j.Data, data)
 	a.Provider = j.Provider
 	a.Selected = j.Selected
@@ -42,15 +41,15 @@ func (a *Account) UnmarshalJSON(bs []byte) error {
 	return nil
 }
 
-type real_manager struct {
+type internalAccMgr struct {
 	file  string
 	root  root
 	queue chan *asyncJob
 }
 
-type Manager struct {
-	*real_manager
-	Provider core.PersistentProvider
+type AccountManager struct {
+	*internalAccMgr
+	Provider PersistentProvider
 }
 
 type asyncJob struct {
@@ -59,23 +58,23 @@ type asyncJob struct {
 }
 
 var mtx = sync.Mutex{}
-var managers = map[string]*real_manager{}
+var managers = map[string]*internalAccMgr{}
 
-func ManagerFor(file string, p core.PersistentProvider) *Manager {
+func AccountManagerFor(file string, p PersistentProvider) *AccountManager {
 	if file == "" {
 		file = defaultFile()
 	}
-	return &Manager{managerFor(file), p}
+	return &AccountManager{managerFor(file), p}
 }
 
-func managerFor(file string) *real_manager {
+func managerFor(file string) *internalAccMgr {
 	mtx.Lock()
 	defer mtx.Unlock()
 	if managers[file] == nil {
 		if err := os.MkdirAll(path.Dir(file), 0755); err != nil {
 			log.Errorf("Could not create parent dirs of %s", file)
 		}
-		m := &real_manager{
+		m := &internalAccMgr{
 			queue: make(chan *asyncJob),
 			file:  file,
 		}
@@ -86,13 +85,13 @@ func managerFor(file string) *real_manager {
 }
 
 // store of type *[]interface{} or panic!
-func (m *Manager) Accounts(store interface{}) {
+func (m *AccountManager) Accounts(store interface{}) {
 	<-m.job(func() {
 		m.accounts(store)
 	})
 }
 
-func (m *Manager) accounts(store interface{}) {
+func (m *AccountManager) accounts(store interface{}) {
 	arr := reflect.Indirect(reflect.ValueOf(store))
 	if arr.Kind() != reflect.Slice {
 		panic("Must provide a slice")
@@ -109,7 +108,7 @@ func (m *Manager) accounts(store interface{}) {
 	}
 }
 
-func (m *Manager) SelectAccount(id string) bool {
+func (m *AccountManager) SelectAccount(id string) bool {
 	var found bool
 	<-m.job(func() {
 		found = m.selectAccount(id)
@@ -117,7 +116,7 @@ func (m *Manager) SelectAccount(id string) bool {
 	return found
 }
 
-func (m *Manager) selectAccount(id string) bool {
+func (m *AccountManager) selectAccount(id string) bool {
 	found := false
 	for k, v := range m.p() {
 		v.Selected = false
@@ -133,7 +132,7 @@ func (m *Manager) selectAccount(id string) bool {
 // Returns 2 bools:
 // The first indicates whether an account was found at all.
 // The second indicates whether there's a selected account.
-func (m *Manager) SelectedAccount(store interface{}) (bool, bool) {
+func (m *AccountManager) SelectedAccount(store interface{}) (bool, bool) {
 	var found, selected bool
 	<-m.job(func() {
 		found, selected = m.selectedAccount(store)
@@ -141,7 +140,7 @@ func (m *Manager) SelectedAccount(store interface{}) (bool, bool) {
 	return found, selected
 }
 
-func (m *Manager) selectedAccount(store interface{}) (bool, bool) {
+func (m *AccountManager) selectedAccount(store interface{}) (bool, bool) {
 	none := true
 	for _, v := range m.p() {
 		if v.Selected {
@@ -155,17 +154,17 @@ func (m *Manager) selectedAccount(store interface{}) (bool, bool) {
 	return !none, false
 }
 
-func (m *Manager) AddAccount(id string, store interface{}) {
+func (m *AccountManager) AddAccount(id string, store interface{}) {
 	<-m.job(func() {
 		m.addAccount(id, store)
 	})
 }
 
-func (m *Manager) addAccount(id string, store interface{}) {
+func (m *AccountManager) addAccount(id string, store interface{}) {
 	m.p()[id] = &Account{Provider: m.Provider.Name(), Data: store}
 }
 
-func (m *Manager) p() accstore {
+func (m *AccountManager) p() accstore {
 	if _, ok := m.root[m.Provider.Name()]; !ok {
 		m.root[m.Provider.Name()] = accstore{}
 	}
@@ -183,7 +182,7 @@ func icopy(dst, src interface{}) {
 	}
 }
 
-func (m *Manager) job(f func()) <-chan bool {
+func (m *AccountManager) job(f func()) <-chan bool {
 	job := &asyncJob{
 		work: f,
 		done: make(chan bool, 1),
@@ -192,7 +191,7 @@ func (m *Manager) job(f func()) <-chan bool {
 	return job.done
 }
 
-func (m *real_manager) save() error {
+func (m *internalAccMgr) save() error {
 	b, err := json.MarshalIndent(m.root, "", "  ")
 	if err != nil {
 		return err
@@ -200,7 +199,7 @@ func (m *real_manager) save() error {
 	return ioutil.WriteFile(m.file, b, 0600)
 }
 
-func (m *real_manager) reload() {
+func (m *internalAccMgr) reload() {
 	m.root = root{}
 	f, err := os.Open(m.file)
 	if err != nil {
@@ -230,7 +229,7 @@ func (m *real_manager) reload() {
 	json.Unmarshal(bytes, &m.root)
 }
 
-func (m *real_manager) dispatch() {
+func (m *internalAccMgr) dispatch() {
 	m.reload()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

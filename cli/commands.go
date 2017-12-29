@@ -5,7 +5,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
-	"github.com/uget/uget/core/account"
 	"github.com/uget/uget/utils/console"
 	"github.com/uget/uget/utils/units"
 	"os"
@@ -41,7 +40,7 @@ func CmdListAccounts(args []string, opt *Options) int {
 		pp, ok := p.(core.PersistentProvider)
 		if ok {
 			var accs []interface{}
-			account.ManagerFor("", pp).Accounts(&accs)
+			core.AccountManagerFor("", pp).Accounts(&accs)
 			fmt.Printf("%s:\n", p.Name())
 			for _, acc := range accs {
 				fmt.Printf("    %v\n", acc)
@@ -60,7 +59,7 @@ func CmdSelectAccounts(args []string, opt *Options) int {
 	if provider == nil {
 		return 1
 	}
-	mgr := account.ManagerFor("", provider)
+	mgr := core.AccountManagerFor("", provider)
 	ids := []string{}
 	mgr.Accounts(&ids)
 	i := userSelection(ids, "Select an account")
