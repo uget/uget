@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+type Job func()
 type Queue struct {
 	buffer  *channels.InfiniteChannel
 	channel chan *FileSpec

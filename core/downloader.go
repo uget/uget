@@ -3,7 +3,6 @@ package core
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
-	"github.com/eapache/channels"
 	"github.com/uget/uget/core/action"
 	"net/http"
 	"net/http/cookiejar"
@@ -14,8 +13,6 @@ type Downloader struct {
 	Queue        *Queue
 	Client       *http.Client
 	MaxDownloads int
-	dlChannel    chan *Download
-	dlBuffer     *channels.RingChannel
 	done         chan struct{}
 }
 
@@ -36,7 +33,6 @@ func NewDownloaderWith(workers int) *Downloader {
 		Queue:        NewQueue(),
 		Client:       &http.Client{Jar: jar},
 		MaxDownloads: workers,
-		dlBuffer:     channels.NewRingChannel(5),
 		done:         make(chan struct{}, 1),
 	}
 	for _, p := range providers {
