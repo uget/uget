@@ -86,7 +86,10 @@ func CmdGet(args []string, opts *Options) int {
 			}
 		}
 	}
-	client := core.NewDownloader()
+	if opts.Get.Jobs < 1 {
+		opts.Get.Jobs = 1
+	}
+	client := core.NewDownloaderWith(opts.Get.Jobs)
 	_, err := client.Queue.AddLinks(links, 1)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

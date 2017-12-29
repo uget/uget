@@ -26,12 +26,16 @@ const (
 )
 
 func NewDownloader() *Downloader {
+	return NewDownloaderWith(3)
+}
+
+func NewDownloaderWith(workers int) *Downloader {
 	jar, _ := cookiejar.New(nil)
 	dl := &Downloader{
 		Emitter:      emission.NewEmitter(),
 		Queue:        NewQueue(),
 		Client:       &http.Client{Jar: jar},
-		MaxDownloads: 3,
+		MaxDownloads: workers,
 		dlBuffer:     channels.NewRingChannel(5),
 		done:         make(chan struct{}, 1),
 	}
