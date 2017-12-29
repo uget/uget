@@ -5,6 +5,7 @@ import (
 	"github.com/chuckpreslar/emission"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	path "path/filepath"
 	"regexp"
@@ -111,9 +112,15 @@ func (d *Download) Filename() string {
 			d.filename = arr[1]
 		} else {
 			paths := strings.Split(d.Response.Request.URL.RequestURI(), "/")
-			d.filename = paths[len(paths)-1]
-			if d.filename == "" {
+			name_raw := paths[len(paths)-1]
+			name, err := url.PathUnescape(name_raw)
+			if err != nil {
+				name = name_raw
+			}
+			if name == "" {
 				d.filename = "index.html"
+			} else {
+				d.filename = name
 			}
 		}
 	}
