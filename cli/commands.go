@@ -14,7 +14,11 @@ import (
 )
 
 func CmdAddAccount(args []string, opt *Options) int {
-	provider := selectPProvider(args[0])
+	pName := ""
+	if len(args) != 0 {
+		pName = args[0]
+	}
+	provider := selectPProvider(pName)
 	if provider == nil {
 		return 1
 	}
