@@ -100,7 +100,7 @@ func CmdGet(args []string, opts *Options) int {
 	}
 	con := console.NewConsole()
 	fprog := func(name string, progress float64, total float64) string {
-		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.HumanSize(total))
+		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.BytesSize(total))
 	}
 	exit := 0
 	client.OnDownload(func(download *core.Download) {
