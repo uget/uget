@@ -106,10 +106,10 @@ func CmdGet(args []string, opts *Options) int {
 	client.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
-		id := con.AddRows(
+		id := con.AddRow(
 			// fmt.Sprintf("%s:", download.Filename()),
 			fprog(download.Filename(), 0, float64(download.Length())),
-		)[0]
+		)
 		download.OnUpdate(func(progress int64) {
 			con.EditRow(id, fprog(download.Filename(), float64(progress), float64(download.Length())))
 		})
