@@ -1,10 +1,11 @@
 package utils
 
 import (
-	"github.com/Sirupsen/logrus"
 	"os"
 	path "path/filepath"
 	"time"
+
+	"github.com/Sirupsen/logrus"
 )
 
 func InitLogger() {

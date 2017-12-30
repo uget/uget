@@ -2,8 +2,9 @@ package core
 
 import (
 	"errors"
-	"github.com/uget/uget/core/action"
 	"net/http"
+
+	"github.com/uget/uget/core/action"
 )
 
 type Prompter interface {

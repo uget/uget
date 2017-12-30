@@ -1,11 +1,12 @@
 package core
 
 import (
+	"net/http"
+	"net/http/cookiejar"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
 	"github.com/uget/uget/core/action"
-	"net/http"
-	"net/http/cookiejar"
 )
 
 type Downloader struct {

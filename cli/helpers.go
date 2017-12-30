@@ -3,10 +3,11 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	log "github.com/Sirupsen/logrus"
-	"github.com/uget/uget/core"
 	"os"
 	"strings"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/uget/uget/core"
 )
 
 func linksFromFile(links *[]string, f string) error {
@@ -39,7 +40,7 @@ func selectPProvider(arg string) core.PersistentProvider {
 		}
 		i := userSelection(ps, "Choose a provider")
 		if i < 0 {
-			fmt.Fprintln(os.Stderr, "Invalid selection.\n")
+			fmt.Fprintln(os.Stderr, "Invalid selection.")
 			os.Exit(1)
 		}
 		arg = ps[i]

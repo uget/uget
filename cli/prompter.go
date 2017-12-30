@@ -3,10 +3,11 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"github.com/howeyc/gopass"
-	"github.com/uget/uget/core"
 	"os"
 	"strings"
+
+	"github.com/howeyc/gopass"
+	"github.com/uget/uget/core"
 )
 
 type CliPrompter struct {

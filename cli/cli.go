@@ -2,8 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"github.com/jessevdk/go-flags"
 	"os"
+
+	"github.com/jessevdk/go-flags"
 )
 
 /* CLI specification */

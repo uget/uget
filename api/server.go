@@ -3,13 +3,14 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/Unknwon/macaron"
 	"github.com/uget/cnlv2"
 	"github.com/uget/uget/core"
-	"net/http"
-	"strings"
-	"time"
 )
 
 type Server struct {

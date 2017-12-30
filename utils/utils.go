@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"github.com/Wessie/appdirs"
 	path "path/filepath"
+
+	"github.com/Wessie/appdirs"
 )
 
 var app = appdirs.New("uget", "", "")

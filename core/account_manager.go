@@ -2,14 +2,15 @@ package core
 
 import (
 	"encoding/json"
-	log "github.com/Sirupsen/logrus"
-	"github.com/howeyc/fsnotify"
-	"github.com/uget/uget/utils"
 	"io/ioutil"
 	"os"
 	path "path/filepath"
 	"reflect"
 	"sync"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/howeyc/fsnotify"
+	"github.com/uget/uget/utils"
 )
 
 func defaultFile() string {

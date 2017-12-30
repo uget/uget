@@ -1,8 +1,6 @@
 package core
 
 import (
-	log "github.com/Sirupsen/logrus"
-	"github.com/chuckpreslar/emission"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +9,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/chuckpreslar/emission"
 )
 
 type Download struct {

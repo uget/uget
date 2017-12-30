@@ -3,8 +3,9 @@ package core
 import (
 	log "github.com/Sirupsen/logrus"
 	// pq "github.com/oleiade/lane"
-	"github.com/eapache/channels"
 	"sync"
+
+	"github.com/eapache/channels"
 )
 
 type Job func()
