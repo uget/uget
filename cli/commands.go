@@ -2,15 +2,16 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"time"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils/console"
 	"github.com/uget/uget/utils/rate"
 	"github.com/uget/uget/utils/units"
-	"os"
-	"os/exec"
-	"time"
 )
 
 func CmdAddAccount(args []string, opt *Options) int {
@@ -24,7 +25,7 @@ func CmdAddAccount(args []string, opt *Options) int {
 	}
 	prompter := NewCliPrompter(provider.Name(), opt.Unknowns)
 	if !core.TryAddAccount(provider, prompter) {
-		fmt.Fprintln(os.Stderr, "This provider does not support accounts.\n")
+		fmt.Fprintln(os.Stderr, "This provider does not support accounts.")
 		return 1
 	}
 	return 0
