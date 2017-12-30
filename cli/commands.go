@@ -6,6 +6,7 @@ import (
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils/console"
+	"github.com/uget/uget/utils/rate"
 	"github.com/uget/uget/utils/units"
 	"os"
 	"os/exec"
@@ -99,19 +100,23 @@ func CmdGet(args []string, opts *Options) int {
 		return 1
 	}
 	con := console.NewConsole()
-	fprog := func(name string, progress float64, total float64) string {
-		return fmt.Sprintf("%s: %5.2f%% of %10s", name, progress/total*100, units.BytesSize(total))
+	fprog := func(name string, progress float64, total float64, speed float64) string {
+		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))
 	}
 	exit := 0
 	client.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
+		var progress int64 = 0
+		rater := rate.SmoothRate(10)
 		id := con.AddRow(
 			// fmt.Sprintf("%s:", download.Filename()),
-			fprog(download.Filename(), 0, float64(download.Length())),
+			fprog(download.Filename(), 0, float64(download.Length()), 0),
 		)
-		download.OnUpdate(func(progress int64) {
-			con.EditRow(id, fprog(download.Filename(), float64(progress), float64(download.Length())))
+		download.OnUpdate(func(prog int64) {
+			rater.Add(prog - progress)
+			progress = prog
+			con.EditRow(id, fprog(download.Filename(), float64(prog), float64(download.Length()), float64(rater.Rate())))
 		})
 		download.OnSkip(func() {
 			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
