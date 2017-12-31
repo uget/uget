@@ -60,7 +60,13 @@ func intToString(size, unit float64, _map []string) string {
 		size = size / unit
 		i++
 	}
-	return fmt.Sprintf("%.4g %s", size, _map[i])
+	s := fmt.Sprintf("%.4g", size)
+	// sharp numbers will omit the .0 so add the .0 in order to have uniform length
+	// this only leave 1000 - 1023 in bytes size to stand out with length 4 but that's okay
+	if len(s) == 3 {
+		s += ".0"
+	}
+	return fmt.Sprintf("%s %s", s, _map[i])
 }
 
 // FromHumanSize returns an integer from a human-readable specification of a
