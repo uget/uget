@@ -88,28 +88,31 @@ func (d *Downloader) Download(fs *FileSpec) {
 	}
 	// Reverse iterate -> last provider is the default provider
 	FindProvider(func(p Provider) bool {
-		a := p.Action(resp, d)
-		switch a.Value {
-		case action.NEXT:
-			return false
-		case action.REDIRECT:
-			fs2 := &FileSpec{}
-			*fs2 = *fs // Copy fs to fs2
-			fs2.URL = resp.Request.URL.ResolveReference(a.RedirectTo)
-			log.Debugf("Got redirect instruction from %v provider. Location: %v", p.Name(), fs2.URL)
-			d.Download(fs2)
-		case action.GOAL:
-			download := NewDownloadFromResponse(resp)
-			d.Emit(eDownload, download)
-			download.Start()
-		case action.BUNDLE:
-			log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
-			d.Queue.AddLinks(a.Links, fs.Priority)
-		case action.DEADEND:
-			d.Emit(eDeadend, fs)
-			log.Debugf("Reached deadend (via %v provider).", p.Name())
+		if ap, ok := p.(Getter); ok {
+			a := ap.Action(resp, d)
+			switch a.Value {
+			case action.NEXT:
+				return false
+			case action.REDIRECT:
+				fs2 := &FileSpec{}
+				*fs2 = *fs // Copy fs to fs2
+				fs2.URL = resp.Request.URL.ResolveReference(a.RedirectTo)
+				log.Debugf("Got redirect instruction from %v provider. Location: %v", p.Name(), fs2.URL)
+				d.Download(fs2)
+			case action.GOAL:
+				download := NewDownloadFromResponse(resp)
+				d.Emit(eDownload, download)
+				download.Start()
+			case action.BUNDLE:
+				log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
+				d.Queue.AddLinks(a.Links, fs.Priority)
+			case action.DEADEND:
+				d.Emit(eDeadend, fs)
+				log.Debugf("Reached deadend (via %v provider).", p.Name())
+			}
+			return true
 		}
-		return true
+		return false
 	})
 }
 

@@ -40,7 +40,7 @@ func (a *account) UnmarshalJSON(bs []byte) error {
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
 	}
-	data := GetProvider(j.Provider).(PersistentProvider).NewTemplate()
+	data := GetProvider(j.Provider).(Accountant).NewTemplate()
 	json.Unmarshal(*j.Data, data)
 	a.Provider = j.Provider
 	a.Selected = j.Selected
@@ -56,7 +56,7 @@ type internalAccMgr struct {
 
 type AccountManager struct {
 	*internalAccMgr
-	Provider PersistentProvider
+	Provider Accountant
 }
 
 type asyncJob struct {
@@ -67,7 +67,7 @@ type asyncJob struct {
 var mtx = sync.Mutex{}
 var managers = map[string]*internalAccMgr{}
 
-func AccountManagerFor(file string, p PersistentProvider) *AccountManager {
+func AccountManagerFor(file string, p Accountant) *AccountManager {
 	if file == "" {
 		file = defaultFile()
 	}

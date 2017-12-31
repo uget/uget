@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/uget/uget/core/action"
 )
@@ -20,19 +21,41 @@ type Field struct {
 	Value     string
 }
 
+// Provider is the base interface, other interfaces will be dynamically infered
 type Provider interface {
 	Name() string
+}
+
+// Resolver is a provider which can resolve specific URLs
+type Resolver interface {
+	Provider
+
+	// Determines whether this provider can read meta information
+	// for the provided URL.
+	CanResolve(*url.URL) bool
+
+	// Resolve the given URLs.
+	Resolve([]*url.URL) ([]File, error)
+}
+
+// Getter is a provider which can get/download specific URLs
+type Getter interface {
+	Provider
+
 	Action(*http.Response, *Downloader) *action.Action
 }
 
-type LoginProvider interface {
+// Authenticator is a provider that requires or features signing in
+type Authenticator interface {
 	Provider
 	Login(*Downloader, *AccountManager)
 }
 
-type PersistentProvider interface {
+// Accountant is a provider that stores user accounts
+type Accountant interface {
 	Provider
 
+	// Retrieve (existing) account with user input obtained from Prompter param.
 	NewAccount(Prompter) (Account, error)
 
 	// returns a pointer to an internal account struct
@@ -42,8 +65,8 @@ type PersistentProvider interface {
 }
 
 func TryLogin(p Provider, d *Downloader) bool {
-	if lp, ok := p.(LoginProvider); ok {
-		if pp, ok := lp.(PersistentProvider); ok {
+	if lp, ok := p.(Authenticator); ok {
+		if pp, ok := lp.(Accountant); ok {
 			lp.Login(d, AccountManagerFor("", pp))
 		} else {
 			lp.Login(d, nil)
@@ -54,7 +77,7 @@ func TryLogin(p Provider, d *Downloader) bool {
 }
 
 func TryAddAccount(p Provider, pr Prompter) bool {
-	pp, ok := p.(PersistentProvider)
+	pp, ok := p.(Accountant)
 	if ok {
 		if acc, err := pp.NewAccount(pr); err != nil {
 			AccountManagerFor("", pp).AddAccount(acc)
@@ -68,7 +91,7 @@ func TryAddAccount(p Provider, pr Prompter) bool {
 }
 
 func TryTemplate(p Provider) (interface{}, bool) {
-	if lp, ok := p.(PersistentProvider); ok {
+	if lp, ok := p.(Accountant); ok {
 		return lp.NewTemplate(), true
 	}
 	return nil, false

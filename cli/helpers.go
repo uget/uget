@@ -30,11 +30,11 @@ func linksFromFile(links *[]string, f string) error {
 	return nil
 }
 
-func selectPProvider(arg string) core.PersistentProvider {
+func selectPProvider(arg string) core.Accountant {
 	if arg == "" {
 		ps := make([]string, 0)
 		for _, p := range core.AllProviders() {
-			if pp, ok := p.(core.PersistentProvider); ok {
+			if pp, ok := p.(core.Accountant); ok {
 				ps = append(ps, pp.Name())
 			}
 		}
@@ -45,7 +45,7 @@ func selectPProvider(arg string) core.PersistentProvider {
 		}
 		arg = ps[i]
 	}
-	provider := core.GetProvider(arg).(core.PersistentProvider)
+	provider := core.GetProvider(arg).(core.Accountant)
 	if provider == nil {
 		fmt.Printf("No provider found for %s\n", arg)
 	}

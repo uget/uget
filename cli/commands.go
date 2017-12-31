@@ -39,7 +39,7 @@ func CmdListAccounts(args []string, opt *Options) int {
 		providers = []core.Provider{core.GetProvider(args[0])}
 	}
 	for _, p := range providers {
-		pp, ok := p.(core.PersistentProvider)
+		pp, ok := p.(core.Accountant)
 		if ok {
 			var accs []interface{}
 			core.AccountManagerFor("", pp).Accounts(&accs)
