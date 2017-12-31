@@ -3,6 +3,7 @@ package core
 import (
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
@@ -77,6 +78,69 @@ func (d *Downloader) StartAsync() {
 	}()
 }
 
+type resolveJob func() ([]File, error)
+
+func (d *Downloader) ResolveSync(urls []*url.URL) ([]File, error) {
+	fs := make([]File, 0, len(urls))
+	fchan, echan, len := d.Resolve(urls)
+	for i := 0; i < len; i++ {
+		select {
+		case files := <-fchan:
+			fs = append(fs, files...)
+		case err := <-echan:
+			return fs, err
+		}
+	}
+	return fs, nil
+}
+
+func (d *Downloader) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
+	byProvider := make(map[resolver][]*url.URL)
+	for _, u := range urls {
+		resolver := FindProvider(func(p Provider) bool {
+			if r, ok := p.(resolver); ok {
+				return r.CanResolve(u)
+			}
+			return false
+		}).(resolver)
+		byProvider[resolver] = append(byProvider[resolver], u)
+	}
+	jobs := make([]resolveJob, 0, len(urls))
+	for p, urls := range byProvider {
+		if mr, ok := p.(MultiResolver); ok {
+			us := urls
+			job := func() ([]File, error) {
+				fs, err := mr.Resolve(us)
+				return fs, err
+			}
+			jobs = append(jobs, job)
+		} else {
+			sr := p.(SingleResolver)
+			for _, url := range urls {
+				u := url
+				job := func() ([]File, error) {
+					fs, err := sr.Resolve(u)
+					return []File{fs}, err
+				}
+				jobs = append(jobs, job)
+			}
+		}
+	}
+	fchan := make(chan []File)
+	echan := make(chan error)
+	for _, job := range jobs {
+		go func(job resolveJob) {
+			files, err := job()
+			if err != nil {
+				echan <- err
+			} else {
+				fchan <- files
+			}
+		}(job)
+	}
+	return fchan, echan, len(jobs)
+}
+
 func (d *Downloader) Download(fs *FileSpec) {
 	log.Debugf("Downloading remote file: %v", fs.URL)
 	req, _ := http.NewRequest("GET", fs.URL.String(), nil)
@@ -104,8 +168,8 @@ func (d *Downloader) Download(fs *FileSpec) {
 				d.Emit(eDownload, download)
 				download.Start()
 			case action.BUNDLE:
-				log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.Links))
-				d.Queue.AddLinks(a.Links, fs.Priority)
+				log.Debugf("Got bundle instructions from %v provider. Bundle size: %v", p.Name(), len(a.URLs))
+				d.Queue.AddLinks(a.URLs, fs.Priority)
 			case action.DEADEND:
 				d.Emit(eDeadend, fs)
 				log.Debugf("Reached deadend (via %v provider).", p.Name())

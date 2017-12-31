@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -73,33 +74,52 @@ func CmdSelectAccounts(args []string, opt *Options) int {
 	return 0
 }
 
+func CmdResolve(args []string, opts *Options) int {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "No arguments provided")
+		return 1
+	}
+	urls := grabURLs(args, opts.Resolve.urlArgs)
+	client := core.NewDownloader()
+	files, err := client.ResolveSync(urls)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving: %v\n", err.Error())
+		return 1
+	}
+	var totalLength int64
+	for _, f := range files {
+		totalLength += f.Length()
+		length := units.BytesSize(float64(f.Length()))
+		fmt.Printf("%9s   %s", length, f.URL())
+		sum, algo, _ := f.Checksum()
+		pathSegments := strings.Split(f.URL().RequestURI(), "/")
+		uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Filename()
+		if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
+			if sum == "" {
+				fmt.Printf(" (%s)", f.Filename())
+			} else if uriDiffersFromFile {
+				fmt.Printf(" (%s, %s: %s)", f.Filename(), algo, sum)
+			} else {
+				fmt.Printf(" (%s: %s)", algo, sum)
+			}
+		}
+		fmt.Println()
+	}
+	fmt.Println(units.BytesSize(float64(totalLength)))
+	return 0
+}
+
 func CmdGet(args []string, opts *Options) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "No arguments provided")
 		return 1
 	}
-	var links []string
-	if opts.Get.Inline {
-		links = args
-	} else {
-		links = make([]string, 0, 256)
-		for _, file := range args {
-			err := linksFromFile(&links, file)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading links: %v\n", err)
-				return 1
-			}
-		}
-	}
+	urls := grabURLs(args, opts.Get.urlArgs)
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}
 	client := core.NewDownloaderWith(opts.Get.Jobs)
-	_, err := client.Queue.AddLinks(links, 1)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
+	client.Queue.AddLinks(urls, 1)
 	con := console.NewConsole()
 	fprog := func(name string, progress float64, total float64, speed float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))

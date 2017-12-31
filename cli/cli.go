@@ -12,6 +12,7 @@ import (
 type Options struct {
 	Accounts Accounts `command:"accounts"`
 	Get      Get      `command:"get"`
+	Resolve  Resolve  `command:"resolve"`
 	Server   Server   `command:"server"`
 	Daemon   Daemon   `command:"daemon"`
 	Push     Push     `command:"push"`
@@ -23,11 +24,21 @@ type Server struct {
 	BindAddr string `short:"b" long:"bind" description:"address to bind the server to"`
 }
 
-type Get struct {
-	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
+type urlArgs struct {
 	Inline bool `short:"i" long:"inline" description:"Interpret arguments as URLs (instead of files)"`
+}
+
+type Get struct {
+	*urlArgs
+	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
 	Jobs   int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
 }
+
+type Resolve struct {
+	*urlArgs
+	Full bool `short:"f" long:"full" description:"List all available information"`
+}
+
 type Daemon struct{}
 type Push struct{}
 
@@ -56,6 +67,10 @@ func (cmd *AccountsSelect) Execute(args []string) error {
 
 func (cmd *Get) Execute(args []string) error {
 	return command(args, CmdGet)
+}
+
+func (cmd *Resolve) Execute(args []string) error {
+	return command(args, CmdResolve)
 }
 
 func (cmd *Server) Execute(args []string) error {

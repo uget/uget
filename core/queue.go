@@ -1,6 +1,8 @@
 package core
 
 import (
+	"net/url"
+
 	log "github.com/Sirupsen/logrus"
 	// pq "github.com/oleiade/lane"
 	"sync"
@@ -47,15 +49,13 @@ func (q *Queue) Push(f *FileSpec) {
 	log.WithField("url", f.URL).Debug("added link to queue")
 }
 
-func (q *Queue) AddLinks(links []string, prio int) ([]*FileSpec, error) {
-	fs, err := BundleFromLinks(links)
-	if err == nil {
-		for _, f := range fs {
-			f.Priority = prio
-			q.Push(f)
-		}
+func (q *Queue) AddLinks(urls []*url.URL, prio int) []*FileSpec {
+	fs := BundleFromLinks(urls)
+	for _, f := range fs {
+		f.Priority = prio
+		q.Push(f)
 	}
-	return fs, err
+	return fs
 }
 
 func (q *Queue) FileCount() int {

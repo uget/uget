@@ -9,7 +9,7 @@ type ActionValue int
 type Action struct {
 	Value      ActionValue
 	RedirectTo *url.URL
-	Links      []string
+	URLs       []*url.URL
 }
 
 const (
@@ -41,6 +41,6 @@ func Deadend() *Action {
 	return &Action{Value: DEADEND}
 }
 
-func Bundle(links []string) *Action {
-	return &Action{Value: BUNDLE, Links: links}
+func Bundle(urls []*url.URL) *Action {
+	return &Action{Value: BUNDLE, URLs: urls}
 }

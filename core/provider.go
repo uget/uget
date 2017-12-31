@@ -2,8 +2,11 @@ package core
 
 import (
 	"errors"
+	"hash"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 
 	"github.com/uget/uget/core/action"
 )
@@ -26,16 +29,26 @@ type Provider interface {
 	Name() string
 }
 
-// Resolver is a provider which can resolve specific URLs
-type Resolver interface {
+type resolver interface {
 	Provider
 
 	// Determines whether this provider can read meta information
 	// for the provided URL.
 	CanResolve(*url.URL) bool
+}
 
-	// Resolve the given URLs.
+// MultiResolver is a provider which can resolve multiple URLs at once
+type MultiResolver interface {
+	resolver
+
 	Resolve([]*url.URL) ([]File, error)
+}
+
+// SingleResolver is a provider which can only resolve URLs one by one
+type SingleResolver interface {
+	resolver
+
+	Resolve(*url.URL) (File, error)
 }
 
 // Getter is a provider which can get/download specific URLs
@@ -133,13 +146,16 @@ func FindProvider(f func(Provider) bool) Provider {
 	return nil
 }
 
-type DefaultProvider struct{}
+type defaultProvider struct{}
 
-func (p DefaultProvider) Name() string {
+var _ Getter = defaultProvider{}
+var _ SingleResolver = defaultProvider{}
+
+func (p defaultProvider) Name() string {
 	return "default"
 }
 
-func (p DefaultProvider) Action(r *http.Response, d *Downloader) *action.Action {
+func (p defaultProvider) Action(r *http.Response, d *Downloader) *action.Action {
 	if r.StatusCode != http.StatusOK {
 		return action.Deadend()
 	}
@@ -148,6 +164,65 @@ func (p DefaultProvider) Action(r *http.Response, d *Downloader) *action.Action 
 	return action.Goal()
 }
 
+type file struct {
+	name   string
+	length int64
+	url    *url.URL
+}
+
+var _ File = file{}
+
+func (f file) URL() *url.URL {
+	return f.url
+}
+
+func (f file) Filename() string {
+	return f.name
+
+}
+
+func (f file) Length() int64 {
+	return f.length
+}
+
+func (f file) Checksum() (string, string, hash.Hash) {
+	return "", "", nil
+}
+
+func (p defaultProvider) CanResolve(*url.URL) bool {
+	return true
+}
+
+func (p defaultProvider) Resolve(u *url.URL) (File, error) {
+	if !u.IsAbs() {
+	}
+	c := &http.Client{}
+	req, _ := http.NewRequest("HEAD", u.String(), nil)
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	disposition := resp.Header.Get("Content-Disposition")
+	f := file{length: resp.ContentLength, url: u}
+	arr := regexp.MustCompile(`filename="(.*?)"`).FindStringSubmatch(disposition)
+	if len(arr) > 1 {
+		f.name = arr[1]
+	} else {
+		paths := strings.Split(u.RequestURI(), "/")
+		rawName := paths[len(paths)-1]
+		name, err := url.PathUnescape(rawName)
+		if err != nil {
+			name = rawName
+		}
+		if name == "" {
+			f.name = "index.html"
+		} else {
+			f.name = name
+		}
+	}
+	return f, nil
+}
+
 func init() {
-	RegisterProvider(DefaultProvider{})
+	RegisterProvider(defaultProvider{})
 }

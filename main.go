@@ -1,10 +1,11 @@
 package main
 
 import (
+	"os"
+
 	_ "github.com/uget/providers"
 	"github.com/uget/uget/cli"
 	"github.com/uget/uget/utils"
-	"os"
 )
 
 func main() {
