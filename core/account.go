@@ -13,19 +13,25 @@ import (
 	"github.com/uget/uget/utils"
 )
 
+type Account interface {
+	// Returns a unique identifier for this account.
+	// This will often be the username or e-mail.
+	ID() string
+}
+
 func defaultFile() string {
 	return path.Join(utils.ConfigPath(), "accounts.json")
 }
 
-type Account struct {
+type account struct {
 	Selected bool        `json:"selected,omitempty"`
 	Provider string      `json:"provider"`
 	Data     interface{} `json:"data"`
 }
-type accstore map[string]*Account
+type accstore map[string]*account
 type root map[string]accstore
 
-func (a *Account) UnmarshalJSON(bs []byte) error {
+func (a *account) UnmarshalJSON(bs []byte) error {
 	var j struct {
 		Provider string
 		Selected bool
@@ -133,7 +139,7 @@ func (m *AccountManager) selectAccount(id string) bool {
 // Returns 2 bools:
 // The first indicates whether an account was found at all.
 // The second indicates whether there's a selected account.
-func (m *AccountManager) SelectedAccount(store interface{}) (bool, bool) {
+func (m *AccountManager) SelectedAccount(store Account) (bool, bool) {
 	var found, selected bool
 	<-m.job(func() {
 		found, selected = m.selectedAccount(store)
@@ -141,7 +147,7 @@ func (m *AccountManager) SelectedAccount(store interface{}) (bool, bool) {
 	return found, selected
 }
 
-func (m *AccountManager) selectedAccount(store interface{}) (bool, bool) {
+func (m *AccountManager) selectedAccount(store Account) (bool, bool) {
 	none := true
 	for _, v := range m.p() {
 		if v.Selected {
@@ -155,14 +161,14 @@ func (m *AccountManager) selectedAccount(store interface{}) (bool, bool) {
 	return !none, false
 }
 
-func (m *AccountManager) AddAccount(id string, store interface{}) {
+func (m *AccountManager) AddAccount(account Account) {
 	<-m.job(func() {
-		m.addAccount(id, store)
+		m.addAccount(account)
 	})
 }
 
-func (m *AccountManager) addAccount(id string, store interface{}) {
-	m.p()[id] = &Account{Provider: m.Provider.Name(), Data: store}
+func (m *AccountManager) addAccount(acc Account) {
+	m.p()[acc.ID()] = &account{Provider: m.Provider.Name(), Data: acc}
 }
 
 func (m *AccountManager) p() accstore {
