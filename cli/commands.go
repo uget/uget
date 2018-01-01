@@ -125,6 +125,14 @@ func cmdGet(args []string, opts *options) int {
 		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))
 	}
 	exit := 0
+	rootRater := rate.SmoothRate(10)
+	go func() {
+		for {
+			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
+			ch := time.After(500 * time.Millisecond)
+			<-ch
+		}
+	}()
 	client.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
@@ -135,7 +143,10 @@ func cmdGet(args []string, opts *options) int {
 			fprog(download.Filename(), 0, float64(download.Length()), 0),
 		)
 		download.OnUpdate(func(prog int64) {
-			rater.Add(prog - progress)
+			diff := prog - progress
+			rater.Add(diff)
+			// thread unsafe, but we don't care since it's not meant to be precise
+			rootRater.Add(diff)
 			progress = prog
 			con.EditRow(id, fprog(download.Filename(), float64(prog), float64(download.Length()), float64(rater.Rate())))
 		})

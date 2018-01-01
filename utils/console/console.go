@@ -75,3 +75,14 @@ func (c *Console) EditRow(id Row, text string) {
 	}
 	<-ch
 }
+
+// Summary places a text at the very bottom
+func (c *Console) Summary(text string) {
+	ch := make(chan struct{})
+	c.jobs <- func() {
+		fmt.Fprintf(c.File, "\r%c[2K", 27)
+		fmt.Fprint(c.File, text)
+		close(ch)
+	}
+	<-ch
+}
