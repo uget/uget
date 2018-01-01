@@ -19,7 +19,7 @@ func newCliPrompter(prefix string, overrides map[string]string) *cliPrompter {
 	return &cliPrompter{prefix, overrides}
 }
 
-func (c cliPrompter) Get(fields []core.Field) map[string]string {
+func (c cliPrompter) Get(fields []core.Field) (map[string]string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	values := map[string]string{}
 	for _, field := range fields {
@@ -33,17 +33,16 @@ func (c cliPrompter) Get(fields []core.Field) map[string]string {
 			fmt.Printf("[%s] %s%s: ", c.prefix, field.Display, deftext)
 			var entered string
 			if field.Sensitive {
-				t, err := gopass.GetPasswd()
+				t, err := gopass.GetPasswdMasked()
 				if err != nil {
-					c.Error(err.Error())
-					return nil
+					return nil, err
 				}
 				entered = string(t)
 			} else {
 				line, err := reader.ReadString('\n')
 				if err != nil {
 					c.Error(err.Error())
-					return nil
+					return nil, err
 				}
 				entered = strings.TrimSpace(string(line))
 			}
@@ -53,7 +52,7 @@ func (c cliPrompter) Get(fields []core.Field) map[string]string {
 			values[field.Key] = entered
 		}
 	}
-	return values
+	return values, nil
 }
 
 func (c cliPrompter) Error(display string) {

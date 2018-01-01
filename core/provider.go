@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 
@@ -10,7 +11,7 @@ import (
 
 // Prompter asks for user input
 type Prompter interface {
-	Get(f []Field) map[string]string
+	Get(f []Field) (map[string]string, error)
 	Error(display string)
 	Success()
 }
@@ -91,18 +92,18 @@ func TryLogin(p Provider, d *Downloader) bool {
 
 // TryAddAccount asks for user input and stores the account in accounts file and returns `true` --
 // if provider implements `Accountant` interface. Otherwise, simply `false` is returned
-func TryAddAccount(p Provider, pr Prompter) bool {
+func TryAddAccount(p Provider, pr Prompter) error {
 	acct, ok := p.(Accountant)
 	if ok {
 		if acc, err := acct.NewAccount(pr); err == nil {
 			AccountManagerFor("", acct).AddAccount(acc)
-			pr.Success()
 		} else {
-			pr.Error(err.Error())
-			// return false ?
+			return err
 		}
+	} else {
+		return fmt.Errorf("provider is not support accounts")
 	}
-	return ok
+	return nil
 }
 
 // TryTemplate creates a new account template for the given provider and returns that --

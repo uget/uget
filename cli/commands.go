@@ -25,8 +25,8 @@ func cmdAddAccount(args []string, opt *options) int {
 		return 1
 	}
 	prompter := newCliPrompter(provider.Name(), opt.Unknowns)
-	if !core.TryAddAccount(provider, prompter) {
-		fmt.Fprintln(os.Stderr, "This provider does not support accounts.")
+	if err := core.TryAddAccount(provider, prompter); err != nil {
+		prompter.Error(err.Error())
 		return 1
 	}
 	return 0
@@ -62,12 +62,12 @@ func cmdSelectAccounts(args []string, opt *options) int {
 	if provider == nil {
 		return 1
 	}
-	mgr := core.AccountManagerFor("", provider)
+	mgr := core.AccountManagerFor("", provider.(core.Accountant))
 	ids := []string{}
 	mgr.Accounts(&ids)
-	i := userSelection(ids, "Select an account")
-	if i < 0 {
-		fmt.Fprintln(os.Stderr, "Invalid selection")
+	i, err := userSelection(ids, "Select an account", 2)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
 	mgr.SelectAccount(ids[i])

@@ -64,7 +64,7 @@ func grabURLs(args []string, opts *urlArgs) []*url.URL {
 	return urls
 }
 
-func selectPProvider(arg string) core.Accountant {
+func selectPProvider(arg string) core.Provider {
 	if arg == "" {
 		ps := make([]string, 0)
 		for _, p := range core.AllProviders() {
@@ -72,41 +72,57 @@ func selectPProvider(arg string) core.Accountant {
 				ps = append(ps, pp.Name())
 			}
 		}
-		i := userSelection(ps, "Choose a provider")
-		if i < 0 {
-			fmt.Fprintln(os.Stderr, "Invalid selection.")
+		i, err := userSelection(ps, "Choose a provider", 2)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 		arg = ps[i]
 	}
-	provider := core.GetProvider(arg).(core.Accountant)
+	provider := core.GetProvider(arg)
 	if provider == nil {
-		fmt.Printf("No provider found for %s\n", arg)
+		fmt.Printf("Error: no provider named %s.\n", arg)
 	}
 	return provider
 }
 
-func userSelection(arr []string, prompt string) int {
+func userSelection(arr []string, prompt string, tries uint8) (int, error) {
 	for i, x := range arr {
 		fmt.Printf("- %s (%v)\n", x, i+1)
 	}
 	i := -1
+	invalid := ""
 	fmt.Printf("%s: ", prompt)
 	buf := make([]byte, 256)
 	read, err := os.Stdin.Read(buf)
 	if err != nil {
-		panic(err)
+		return 0, err
 	}
 	str := strings.TrimSpace(string(buf[:read]))
 	if len(str) > 0 {
-		if _, err := fmt.Sscanf(str, "%d", &i); err != nil {
-			for index, s := range arr {
-				if s == str {
-					i = index + 1
-					break
-				}
+		for index, s := range arr {
+			if s == str {
+				return index, nil
 			}
 		}
+		// Find by string failed - try to parse int
+		if _, err := fmt.Sscanf(str, "%d", &i); err != nil {
+			invalid = fmt.Sprintf("%s not found", str)
+		} else {
+			i = i - 1
+			if i >= len(arr) || i < 0 {
+				invalid = "index out of range"
+			}
+		}
+	} else {
+		invalid = "no input provided"
 	}
-	return i - 1
+	if invalid != "" {
+		if tries > 1 {
+			fmt.Fprintf(os.Stdout, "Invalid selection: %v!\n\n", invalid)
+			return userSelection(arr, prompt, tries-1)
+		}
+		return 0, fmt.Errorf(invalid)
+	}
+	return i, nil
 }
