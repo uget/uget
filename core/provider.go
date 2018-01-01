@@ -94,7 +94,7 @@ func TryLogin(p Provider, d *Downloader) bool {
 func TryAddAccount(p Provider, pr Prompter) bool {
 	acct, ok := p.(Accountant)
 	if ok {
-		if acc, err := acct.NewAccount(pr); err != nil {
+		if acc, err := acct.NewAccount(pr); err == nil {
 			AccountManagerFor("", acct).AddAccount(acc)
 			pr.Success()
 		} else {
