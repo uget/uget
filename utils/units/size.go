@@ -61,10 +61,14 @@ func intToString(size, unit float64, _map []string) string {
 		i++
 	}
 	s := fmt.Sprintf("%.4g", size)
-	// sharp numbers will omit the .0 so add the .0 in order to have uniform length
-	// this only leave 1000 - 1023 in bytes size to stand out with length 4 but that's okay
-	if len(s) == 3 {
-		s += ".0"
+	// trailing zeroes will be omitted, so add them in order to have uniform length
+	// this only leaves 1000 - 1023 in bytes size to stand out with length 4 but that's okay
+	for len(s) < 5 && (len(s) != 4 || strings.ContainsRune(s, '.')) {
+		if strings.ContainsRune(s, '.') {
+			s += "0"
+		} else {
+			s += ".0"
+		}
 	}
 	return fmt.Sprintf("%s %s", s, _map[i])
 }
