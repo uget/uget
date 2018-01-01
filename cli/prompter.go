@@ -10,23 +10,23 @@ import (
 	"github.com/uget/uget/core"
 )
 
-type CliPrompter struct {
+type cliPrompter struct {
 	prefix    string
 	overrides map[string]string
 }
 
-func NewCliPrompter(prefix string, overrides map[string]string) *CliPrompter {
-	return &CliPrompter{prefix, overrides}
+func newCliPrompter(prefix string, overrides map[string]string) *cliPrompter {
+	return &cliPrompter{prefix, overrides}
 }
 
-func (c CliPrompter) Get(fields []core.Field) map[string]string {
+func (c cliPrompter) Get(fields []core.Field) map[string]string {
 	reader := bufio.NewReader(os.Stdin)
 	values := map[string]string{}
 	for _, field := range fields {
 		if value, ok := c.overrides[field.Key]; ok {
 			values[field.Key] = value
 		} else {
-			var deftext string = ""
+			var deftext string
 			if field.Value != "" {
 				deftext = fmt.Sprintf(" (%s)", field.Value)
 			}
@@ -56,10 +56,10 @@ func (c CliPrompter) Get(fields []core.Field) map[string]string {
 	return values
 }
 
-func (c CliPrompter) Error(display string) {
+func (c cliPrompter) Error(display string) {
 	fmt.Fprintf(os.Stderr, "[%s] Error: %s\n", c.prefix, display)
 }
 
-func (c CliPrompter) Success() {
+func (c cliPrompter) Success() {
 	fmt.Fprintf(os.Stderr, "[%s] Success!\n", c.prefix)
 }

@@ -5,13 +5,13 @@ import (
 )
 
 type smoothRate struct {
-	Parent     Rater
 	sizes      []int64
 	intervals  []time.Duration
 	smoothness int
 	lastTime   time.Time
 }
 
+// SmoothRate returns a smooth rater that tracks the speed
 func SmoothRate(smoothness uint) Rater {
 	return &smoothRate{
 		sizes:      make([]int64, 1, smoothness+1),
@@ -22,9 +22,6 @@ func SmoothRate(smoothness uint) Rater {
 }
 
 func (sr *smoothRate) Add(progress int64) {
-	if sr.Parent != nil {
-		sr.Parent.Add(progress)
-	}
 	sr.sizes[len(sr.sizes)-1] += progress
 }
 
@@ -60,29 +57,35 @@ func rateFor(sizes []int64, intervals []time.Duration) BPS {
 	return BPS(speed)
 }
 
-// Bytes per second
+// BPS - bytes per second
 type BPS float64
 
+// Float returns the number of bytes per second
 func (b BPS) Float() float64 {
 	return float64(b)
 }
 
+// BPS returns the number of bytes per second
 func (b BPS) BPS() float64 {
 	return b.Float()
 }
 
+// KBPS returns the number of kilobytes per second
 func (b BPS) KBPS() float64 {
 	return b.BPS() / 1000
 }
 
+// MBPS returns the number of megabytes per second
 func (b BPS) MBPS() float64 {
 	return b.KBPS() / 1000
 }
 
+// GBPS returns the number of gigabytes per second
 func (b BPS) GBPS() float64 {
 	return b.MBPS() / 1000
 }
 
+// Rater tracks download speed
 type Rater interface {
 	Add(int64)
 	Rate() BPS

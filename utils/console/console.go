@@ -6,14 +6,17 @@ import (
 	"strings"
 )
 
+// Row - line number / ID in console
 type Row int
 
+// Console represents the TTY
 type Console struct {
 	File     *os.File
 	jobs     chan func()
 	rowCount int
 }
 
+// NewConsole initializes a Console object
 func NewConsole() *Console {
 	c := &Console{
 		os.Stdout,
@@ -30,6 +33,7 @@ func (c *Console) dispatch() {
 	}
 }
 
+// AddRow adds a row at the end of the console
 func (c *Console) AddRow(text string) Row {
 	idch := make(chan Row)
 	c.jobs <- func() {
@@ -38,6 +42,7 @@ func (c *Console) AddRow(text string) Row {
 	return <-idch
 }
 
+// AddRows adds multiple rows at the end of the console
 func (c *Console) AddRows(texts ...string) []Row {
 	idsch := make(chan []Row)
 	c.jobs <- func() {
@@ -57,6 +62,7 @@ func (c *Console) addRow(text string) Row {
 	return id
 }
 
+// EditRow replaces the given row with the given string
 func (c *Console) EditRow(id Row, text string) {
 	ch := make(chan struct{})
 	c.jobs <- func() {

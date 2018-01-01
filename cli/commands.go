@@ -15,7 +15,7 @@ import (
 	"github.com/uget/uget/utils/units"
 )
 
-func CmdAddAccount(args []string, opt *Options) int {
+func cmdAddAccount(args []string, opt *options) int {
 	pName := ""
 	if len(args) != 0 {
 		pName = args[0]
@@ -24,7 +24,7 @@ func CmdAddAccount(args []string, opt *Options) int {
 	if provider == nil {
 		return 1
 	}
-	prompter := NewCliPrompter(provider.Name(), opt.Unknowns)
+	prompter := newCliPrompter(provider.Name(), opt.Unknowns)
 	if !core.TryAddAccount(provider, prompter) {
 		fmt.Fprintln(os.Stderr, "This provider does not support accounts.")
 		return 1
@@ -32,7 +32,7 @@ func CmdAddAccount(args []string, opt *Options) int {
 	return 0
 }
 
-func CmdListAccounts(args []string, opt *Options) int {
+func cmdListAccounts(args []string, opt *options) int {
 	var providers []core.Provider
 	if len(args) == 0 {
 		providers = core.AllProviders()
@@ -53,7 +53,7 @@ func CmdListAccounts(args []string, opt *Options) int {
 	return 0
 }
 
-func CmdSelectAccounts(args []string, opt *Options) int {
+func cmdSelectAccounts(args []string, opt *options) int {
 	var arg string
 	if len(args) != 0 {
 		arg = args[0]
@@ -74,7 +74,7 @@ func CmdSelectAccounts(args []string, opt *Options) int {
 	return 0
 }
 
-func CmdResolve(args []string, opts *Options) int {
+func cmdResolve(args []string, opts *options) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "No arguments provided")
 		return 1
@@ -109,7 +109,7 @@ func CmdResolve(args []string, opts *Options) int {
 	return 0
 }
 
-func CmdGet(args []string, opts *Options) int {
+func cmdGet(args []string, opts *options) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "No arguments provided")
 		return 1
@@ -128,7 +128,7 @@ func CmdGet(args []string, opts *Options) int {
 	client.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
-		var progress int64 = 0
+		var progress int64
 		rater := rate.SmoothRate(10)
 		id := con.AddRow(
 			// fmt.Sprintf("%s:", download.Filename()),
@@ -162,7 +162,7 @@ func CmdGet(args []string, opts *Options) int {
 	return exit
 }
 
-func CmdServer(args []string, opts *Options) int {
+func cmdServer(args []string, opts *options) int {
 	server := &api.Server{}
 	server.BindAddr = opts.Server.BindAddr
 	server.Port = opts.Server.Port
@@ -173,7 +173,7 @@ func CmdServer(args []string, opts *Options) int {
 	return 1
 }
 
-func CmdDaemon(args []string, opts *Options) int {
+func cmdDaemon(args []string, opts *options) int {
 	cmd := exec.Command(os.Args[0], append([]string{"server"}, os.Args[2:]...)...)
 	fi, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -184,13 +184,12 @@ func CmdDaemon(args []string, opts *Options) int {
 	if err != nil {
 		log.Error("Error starting the daemon: ", err, ".")
 		return 1
-	} else {
-		log.Info("Daemon running with pid ", cmd.Process.Pid)
-		return 0
 	}
+	log.Info("Daemon running with pid ", cmd.Process.Pid)
+	return 0
 }
 
-func CmdPush(args []string, opts *Options) int {
+func cmdPush(args []string, opts *options) int {
 	log.Error("Not implemented yet.")
 	return 3
 }

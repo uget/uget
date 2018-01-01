@@ -10,6 +10,7 @@ import (
 	"github.com/uget/uget/core/action"
 )
 
+// Downloader manages downloads
 type Downloader struct {
 	*emission.Emitter
 	Queue        *Queue
@@ -24,10 +25,12 @@ const (
 	eError
 )
 
+// NewDownloader creates a new Downloader with 3 workers
 func NewDownloader() *Downloader {
 	return NewDownloaderWith(3)
 }
 
+// NewDownloaderWith creates a new Downloader with the amount of workers provided
 func NewDownloaderWith(workers int) *Downloader {
 	jar, _ := cookiejar.New(nil)
 	dl := &Downloader{
@@ -43,6 +46,7 @@ func NewDownloaderWith(workers int) *Downloader {
 	return dl
 }
 
+// Start starts the Downloader in the mode provided
 func (d *Downloader) Start(async bool) {
 	if async {
 		d.StartAsync()
@@ -51,11 +55,13 @@ func (d *Downloader) Start(async bool) {
 	}
 }
 
+// StartSync starts the Downloader in synchronous mode
 func (d *Downloader) StartSync() {
 	d.StartAsync()
 	<-d.done
 }
 
+// Finished returns a channel that will be closed when all workers are idle.
 func (d *Downloader) Finished() <-chan struct{} {
 	return d.done
 }
@@ -67,6 +73,7 @@ func (d *Downloader) work() {
 	}
 }
 
+// StartAsync starts the Downloader in asynchronous mode
 func (d *Downloader) StartAsync() {
 	for i := 0; i < d.MaxDownloads; i++ {
 		go d.work()
@@ -80,6 +87,7 @@ func (d *Downloader) StartAsync() {
 
 type resolveJob func() ([]File, error)
 
+// ResolveSync resolves the URLs. Returns File specs or error that occurred
 func (d *Downloader) ResolveSync(urls []*url.URL) ([]File, error) {
 	fs := make([]File, 0, len(urls))
 	fchan, echan, len := d.Resolve(urls)
@@ -94,6 +102,12 @@ func (d *Downloader) ResolveSync(urls []*url.URL) ([]File, error) {
 	return fs, nil
 }
 
+// Resolve asynchronously resolves the URLs. Returns file channel, error channel and worker count
+// The amount of messages to the channels are guaranteed to add up to the worker count,
+// i.e., every worker will either send `[]File` or `error`.
+//
+// As such, a `for` instruction that loops `n` times (n being the third return value) and selects
+// from both channels will eventually terminate.
 func (d *Downloader) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 	byProvider := make(map[resolver][]*url.URL)
 	for _, u := range urls {
@@ -141,6 +155,7 @@ func (d *Downloader) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int)
 	return fchan, echan, len(jobs)
 }
 
+// Download resolves and retrieves the given FileSpec (about to be deprecated)
 func (d *Downloader) Download(fs *FileSpec) {
 	log.Debugf("Downloading remote file: %v", fs.URL)
 	req, _ := http.NewRequest("GET", fs.URL.String(), nil)
@@ -180,14 +195,17 @@ func (d *Downloader) Download(fs *FileSpec) {
 	})
 }
 
+// OnDownload calls the given hook when a new Download is started. The download object is passed.
 func (d *Downloader) OnDownload(f func(*Download)) {
 	d.On(eDownload, f)
 }
 
+// OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
 func (d *Downloader) OnDeadend(f func(*FileSpec)) {
 	d.On(eDeadend, f)
 }
 
+// OnError calls the given hook when an error occurred in `Download`
 func (d *Downloader) OnError(f func(*FileSpec, error)) {
 	d.On(eError, f)
 }

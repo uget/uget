@@ -9,17 +9,17 @@ import (
 
 /* CLI specification */
 
-type Options struct {
-	Accounts Accounts `command:"accounts"`
-	Get      Get      `command:"get"`
-	Resolve  Resolve  `command:"resolve"`
-	Server   Server   `command:"server"`
-	Daemon   Daemon   `command:"daemon"`
-	Push     Push     `command:"push"`
+type options struct {
+	Accounts accounts `command:"accounts"`
+	Get      get      `command:"get"`
+	Resolve  resolve  `command:"resolve"`
+	Server   server   `command:"server"`
+	Daemon   daemon   `command:"daemon"`
+	Push     push     `command:"push"`
 	Unknowns map[string]string
 }
 
-type Server struct {
+type server struct {
 	Port     uint16 `short:"p" long:"port" description:"port the server listens on" default:"9666"`
 	BindAddr string `short:"b" long:"bind" description:"address to bind the server to"`
 }
@@ -28,79 +28,79 @@ type urlArgs struct {
 	Inline bool `short:"i" long:"inline" description:"Interpret arguments as URLs (instead of files)"`
 }
 
-type Get struct {
+type get struct {
 	*urlArgs
 	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
 	Jobs   int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
 }
 
-type Resolve struct {
+type resolve struct {
 	*urlArgs
 	Full bool `short:"f" long:"full" description:"List all available information"`
 }
 
-type Daemon struct{}
-type Push struct{}
+type daemon struct{}
+type push struct{}
 
-type Accounts struct {
-	Add    AccountsAdd    `command:"add"`
-	List   AccountsList   `command:"list"`
-	Select AccountsSelect `command:"select"`
+type accounts struct {
+	Add    accountsAdd    `command:"add"`
+	List   accountsList   `command:"list"`
+	Select accountsSelect `command:"select"`
 }
-type AccountsAdd struct{}
-type AccountsList struct{}
-type AccountsSelect struct{}
+type accountsAdd struct{}
+type accountsList struct{}
+type accountsSelect struct{}
 
 /* Commands */
 
-func (cmd *AccountsAdd) Execute(args []string) error {
-	return command(args, CmdAddAccount)
+func (cmd *accountsAdd) Execute(args []string) error {
+	return command(args, cmdAddAccount)
 }
 
-func (cmd *AccountsList) Execute(args []string) error {
-	return command(args, CmdListAccounts)
+func (cmd *accountsList) Execute(args []string) error {
+	return command(args, cmdListAccounts)
 }
 
-func (cmd *AccountsSelect) Execute(args []string) error {
-	return command(args, CmdSelectAccounts)
+func (cmd *accountsSelect) Execute(args []string) error {
+	return command(args, cmdSelectAccounts)
 }
 
-func (cmd *Get) Execute(args []string) error {
-	return command(args, CmdGet)
+func (cmd *get) Execute(args []string) error {
+	return command(args, cmdGet)
 }
 
-func (cmd *Resolve) Execute(args []string) error {
-	return command(args, CmdResolve)
+func (cmd *resolve) Execute(args []string) error {
+	return command(args, cmdResolve)
 }
 
-func (cmd *Server) Execute(args []string) error {
-	return command(args, CmdServer)
+func (cmd *server) Execute(args []string) error {
+	return command(args, cmdServer)
 }
 
-func (cmd *Daemon) Execute(args []string) error {
-	return command(args, CmdDaemon)
+func (cmd *daemon) Execute(args []string) error {
+	return command(args, cmdDaemon)
 }
 
-func (cmd *Push) Execute(args []string) error {
-	return command(args, CmdPush)
+func (cmd *push) Execute(args []string) error {
+	return command(args, cmdPush)
 }
 
-/* Hack to facilitate calling commands with options. */
-type Command func(*Options) int
+// Command facilitates calling commands with options.
+type Command func(*options) int
 
 func (c Command) Error() string {
 	return ""
 }
 
-func command(args []string, f func([]string, *Options) int) error {
-	return Command(func(opt *Options) int {
+func command(args []string, f func([]string, *options) int) error {
+	return Command(func(opt *options) int {
 		return f(args, opt)
 	})
 }
 
-// Sets up parser and runs app with passed arguments. Returns exit code.
+// RunApp sets up parser and runs app with passed arguments. Returns exit code.
 func RunApp(arguments []string) int {
-	opts := &Options{
+	opts := &options{
 		Unknowns: map[string]string{},
 	}
 	parser := flags.NewParser(opts, flags.Default^flags.PrintErrors)
@@ -110,10 +110,9 @@ func RunApp(arguments []string) int {
 		if ok {
 			opts.Unknowns[opt] = arg
 			return args, nil
-		} else {
-			opts.Unknowns[opt] = args[0]
-			return args[1:], nil
 		}
+		opts.Unknowns[opt] = args[0]
+		return args[1:], nil
 	}
 	_, err := parser.ParseArgs(arguments[1:])
 	if err != nil {

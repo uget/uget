@@ -8,6 +8,7 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
+// InitLogger initiates the logger to log into the APP_USER_LOG path
 func InitLogger() {
 	logfile := path.Join(app.UserLog(), time.Now().Local().Format("2006-01-02.log"))
 	err1 := os.MkdirAll(path.Dir(logfile), 0755)

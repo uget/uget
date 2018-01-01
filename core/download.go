@@ -14,6 +14,7 @@ import (
 	"github.com/chuckpreslar/emission"
 )
 
+// Download is a single download object that fetches a remote file
 type Download struct {
 	*emission.Emitter
 	UpdateInterval time.Duration
@@ -47,6 +48,7 @@ const (
 	eSkip
 )
 
+// NewDownloadFromResponse initalizes a Download object from the given response
 func NewDownloadFromResponse(r *http.Response) *Download {
 	return &Download{
 		Emitter:  emission.NewEmitter(),
@@ -54,18 +56,22 @@ func NewDownloadFromResponse(r *http.Response) *Download {
 	}
 }
 
+// OnUpdate runs given hook every `d.UpdateInterval` with progress information
 func (d *Download) OnUpdate(f func(int64)) {
 	d.On(eUpdate, f)
 }
 
+// OnDone runs given hook upon finish. Passes elapsed time and error that caused the stop, if any.
 func (d *Download) OnDone(f func(time.Duration, error)) {
 	d.On(eDone, f)
 }
 
+// OnSkip runs given hook when the download was skipped (due to the file already existing).
 func (d *Download) OnSkip(f func()) {
 	d.On(eSkip, f)
 }
 
+// Start reads the response body and copies its contents to the local file and emits events
 func (d *Download) Start() {
 	log.Debugf("Downloading %v", d.Filename())
 	defer d.Response.Body.Close()
@@ -105,6 +111,7 @@ func (d *Download) Start() {
 	}
 }
 
+// Filename returns the filename denoted by the response -- about to be deprecated in favor of File
 func (d *Download) Filename() string {
 	if d.filename == "" {
 		disposition := d.Response.Header.Get("Content-Disposition")
@@ -113,10 +120,10 @@ func (d *Download) Filename() string {
 			d.filename = arr[1]
 		} else {
 			paths := strings.Split(d.Response.Request.URL.RequestURI(), "/")
-			name_raw := paths[len(paths)-1]
-			name, err := url.PathUnescape(name_raw)
+			nameRaw := paths[len(paths)-1]
+			name, err := url.PathUnescape(nameRaw)
 			if err != nil {
-				name = name_raw
+				name = nameRaw
 			}
 			if name == "" {
 				d.filename = "index.html"
@@ -128,10 +135,12 @@ func (d *Download) Filename() string {
 	return d.filename
 }
 
+// Path denotes the local path that the file will be downloaded to
 func (d *Download) Path() string {
 	return path.Join(d.Directory, d.Filename())
 }
 
+// Length denotes the content length
 func (d *Download) Length() int64 {
 	return d.Response.ContentLength
 }

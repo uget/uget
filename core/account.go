@@ -13,6 +13,7 @@ import (
 	"github.com/uget/uget/utils"
 )
 
+// Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account interface {
 	// Returns a unique identifier for this account.
 	// This will often be the username or e-mail.
@@ -54,6 +55,7 @@ type internalAccMgr struct {
 	queue chan *asyncJob
 }
 
+// AccountManager manages provider accounts and keeps the accounts file and local memory in sync
 type AccountManager struct {
 	*internalAccMgr
 	Provider Accountant
@@ -67,6 +69,7 @@ type asyncJob struct {
 var mtx = sync.Mutex{}
 var managers = map[string]*internalAccMgr{}
 
+// AccountManagerFor returns an AccountManager for the given file and provider. File can be empty.
 func AccountManagerFor(file string, p Accountant) *AccountManager {
 	if file == "" {
 		file = defaultFile()
@@ -91,7 +94,7 @@ func managerFor(file string) *internalAccMgr {
 	return managers[file]
 }
 
-// store of type *[]interface{} or panic!
+// Accounts requires parameter of type `*[]interface{}` or panics
 func (m *AccountManager) Accounts(store interface{}) {
 	<-m.job(func() {
 		m.accounts(store)
@@ -115,6 +118,7 @@ func (m *AccountManager) accounts(store interface{}) {
 	}
 }
 
+// SelectAccount sets a local account as selected
 func (m *AccountManager) SelectAccount(id string) bool {
 	var found bool
 	<-m.job(func() {
@@ -135,16 +139,18 @@ func (m *AccountManager) selectAccount(id string) bool {
 	return found
 }
 
-// Get the selected account and copy its fields to `store`
-// Returns 2 bools:
-// The first indicates whether an account was found at all.
-// The second indicates whether there's a selected account.
-func (m *AccountManager) SelectedAccount(store Account) (bool, bool) {
+// SelectedAccount returns the selected account (or the first if no selected exists)
+// The returned bool indicates whether there was a selected account.
+func (m *AccountManager) SelectedAccount() (Account, bool) {
+	store := m.Provider.NewTemplate()
 	var found, selected bool
 	<-m.job(func() {
 		found, selected = m.selectedAccount(store)
 	})
-	return found, selected
+	if !found {
+		return nil, false
+	}
+	return store, selected
 }
 
 func (m *AccountManager) selectedAccount(store Account) (bool, bool) {
@@ -161,6 +167,7 @@ func (m *AccountManager) selectedAccount(store Account) (bool, bool) {
 	return !none, false
 }
 
+// AddAccount adds a record to the accounts file
 func (m *AccountManager) AddAccount(account Account) {
 	<-m.job(func() {
 		m.addAccount(account)
@@ -222,10 +229,9 @@ func (m *internalAccMgr) reload() {
 				}
 			}
 			return
-		} else {
-			log.Errorf("Could not open file %s: %v", m.file, err)
-			return
 		}
+		log.Errorf("Could not open file %s: %v", m.file, err)
+		return
 	}
 	defer f.Close()
 	bytes, err := ioutil.ReadAll(f)

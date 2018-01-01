@@ -13,6 +13,7 @@ import (
 	"github.com/uget/uget/core"
 )
 
+// Server listens for HTTP requests that manipulate files
 type Server struct {
 	BindAddr  string    `json:"bind_address,omitempty"`
 	Port      uint16    `json:"port"`
@@ -28,6 +29,7 @@ func (w macaronLog) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// Run starts the server
 func (s *Server) Run() {
 	m := macaron.NewWithLogger(macaronLog{})
 	m.Use(macaron.Renderer())

@@ -5,9 +5,10 @@ import (
 	"net/url"
 )
 
+// FileSpec is about to be deprecated and replaced by File
 type FileSpec struct {
 	URL      *url.URL
-	Id       string
+	ID       string
 	Bundle   *Bundle
 	Priority int
 }
