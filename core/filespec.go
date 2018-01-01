@@ -15,8 +15,9 @@ type FileSpec struct {
 
 // File denotes a remote file object
 type File interface {
-	Filename() string
-	Length() int64
-	Checksum() (string, string, hash.Hash)
 	URL() *url.URL
+	// -1 if resource is offline / not found
+	Length() int64
+	Filename() string
+	Checksum() (string, string, hash.Hash)
 }

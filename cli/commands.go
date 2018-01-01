@@ -88,22 +88,26 @@ func cmdResolve(args []string, opts *options) int {
 	}
 	var totalLength int64
 	for _, f := range files {
-		totalLength += f.Length()
-		length := units.BytesSize(float64(f.Length()))
-		fmt.Printf("%9s   %s", length, f.URL())
-		sum, algo, _ := f.Checksum()
-		pathSegments := strings.Split(f.URL().RequestURI(), "/")
-		uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Filename()
-		if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
-			if sum == "" {
-				fmt.Printf(" (%s)", f.Filename())
-			} else if uriDiffersFromFile {
-				fmt.Printf(" (%s, %s: %s)", f.Filename(), algo, sum)
-			} else {
-				fmt.Printf(" (%s: %s)", algo, sum)
+		if f.Length() != -1 {
+			totalLength += f.Length()
+			length := units.BytesSize(float64(f.Length()))
+			fmt.Printf("%9s   %s", length, f.URL())
+			sum, algo, _ := f.Checksum()
+			pathSegments := strings.Split(f.URL().RequestURI(), "/")
+			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Filename()
+			if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
+				if sum == "" {
+					fmt.Printf(" (%s)", f.Filename())
+				} else if uriDiffersFromFile {
+					fmt.Printf(" (%s, %s: %s)", f.Filename(), algo, sum)
+				} else {
+					fmt.Printf(" (%s: %s)", algo, sum)
+				}
 			}
+			fmt.Println()
+		} else {
+			fmt.Printf("offline     %s\n", f.URL())
 		}
-		fmt.Println()
 	}
 	fmt.Println(units.BytesSize(float64(totalLength)))
 	return 0
