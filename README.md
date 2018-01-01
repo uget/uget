@@ -63,14 +63,18 @@ client.StartSync()
 
 ### Implemented
 
-Get a remote file:
+Get remote files:
 ```bash
 uget get CONTAINER_SPEC...
 ```
 
-`CONTAINER_SPEC` can be one of:  
-- plain file with a list of URLs
-- more to come.
+Resolve remote files:
+```bash
+uget resolve CONTAINER_SPEC...
+```
+
+`CONTAINER_SPEC` can be a plain file with a list of URLs.
+If option `-i` is passed, the arguments are interpreted as direct URLs instead.
 
 Add an account to a provider. You will be prompted for your credentials.
 ```bash
