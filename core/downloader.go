@@ -214,7 +214,7 @@ func (d *Downloader) download(j *downloadJob) {
 	// Reverse iterate -> last provider is the default provider
 	// Basic provider will always do something
 	fetcher := Download(j.file).Via(retriever).To(d.Directory)
-	log.Debugf("INIT FetchOne, path: %s", fetcher.Path())
+	log.Debugf("INIT Getter, path: %s", fetcher.Path())
 	fi, err := os.Stat(fetcher.Path())
 	if err == nil {
 		log.Debugf("local: %v, remote: %v", fi.Size(), fetcher.File.Length())
