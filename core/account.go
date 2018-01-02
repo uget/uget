@@ -50,20 +50,15 @@ func (a *account) UnmarshalJSON(bs []byte) error {
 }
 
 type internalAccMgr struct {
-	file  string
-	root  root
-	queue chan *asyncJob
+	jobber
+	file string
+	root root
 }
 
 // AccountManager manages provider accounts and keeps the accounts file and local memory in sync
 type AccountManager struct {
 	*internalAccMgr
 	Provider Accountant
-}
-
-type asyncJob struct {
-	work func()
-	done chan bool
 }
 
 var mtx = sync.Mutex{}
@@ -84,10 +79,7 @@ func managerFor(file string) *internalAccMgr {
 		if err := os.MkdirAll(path.Dir(file), 0755); err != nil {
 			log.Errorf("Could not create parent dirs of %s", file)
 		}
-		m := &internalAccMgr{
-			queue: make(chan *asyncJob),
-			file:  file,
-		}
+		m := &internalAccMgr{jobber{make(chan *asyncJob)}, file, nil}
 		managers[file] = m
 		go m.dispatch()
 	}
@@ -196,15 +188,6 @@ func icopy(dst, src interface{}) {
 	}
 }
 
-func (m *AccountManager) job(f func()) <-chan bool {
-	job := &asyncJob{
-		work: f,
-		done: make(chan bool, 1),
-	}
-	m.queue <- job
-	return job.done
-}
-
 func (m *internalAccMgr) save() error {
 	b, err := json.MarshalIndent(m.root, "", "  ")
 	if err != nil {
@@ -260,7 +243,7 @@ func (m *internalAccMgr) dispatch() {
 			}
 		case err := <-watcher.Error:
 			log.Errorf("Error watching %s: %v", m.file, err)
-		case job := <-m.queue:
+		case job := <-m.jobQueue:
 			job.work()
 			l := log.WithField("file", m.file)
 			if err := m.save(); err != nil {
@@ -270,7 +253,7 @@ func (m *internalAccMgr) dispatch() {
 			}
 			// this is after m.save() because of race conditions that occur if main thread exits.
 			// TODO: fix the race condition and move this up.
-			job.done <- true
+			job.done <- struct{}{}
 		}
 	}
 }

@@ -3,10 +3,8 @@ package core
 import (
 	"errors"
 	"fmt"
-	"net/http"
+	"io"
 	"net/url"
-
-	"github.com/uget/uget/core/action"
 )
 
 // Prompter asks for user input
@@ -27,6 +25,19 @@ type Field struct {
 // Provider is the base interface, other interfaces will be dynamically infered
 type Provider interface {
 	Name() string
+}
+
+// Config object
+type Config struct {
+	AccountManager *AccountManager
+}
+
+// Configured are providers that require some kind of configuration/initialization
+type Configured interface {
+	Provider
+
+	// Configure this provider. Can be called multiple times but never concurrently
+	Configure(*Config)
 }
 
 type resolver interface {
@@ -51,17 +62,21 @@ type SingleResolver interface {
 	Resolve(*url.URL) (File, error)
 }
 
-// Getter is a provider which can get/download specific URLs
-type Getter interface {
+// Retriever is a provider which can download specific URLs
+type Retriever interface {
 	Provider
 
-	Action(*http.Response, *Downloader) *action.Action
-}
+	Retrieve(File) (io.ReadCloser, error)
 
-// Authenticator is a provider that requires or features signing in
-type Authenticator interface {
-	Provider
-	Login(*Downloader, *AccountManager)
+	// Determines whether this provider can fetch the resource
+	// pointed to by the given URL.
+	//
+	// Returns:
+	//   - 0, if this provider cannot operate on the URL.
+	//   - > 0, if this provider is suitable for handling the URL.
+	//     A higher number denotes a higher suitability (i.e., basic provider will always return 1)
+	//     Providers should take remaining traffic etc. into account.
+	CanRetrieve(File) uint
 }
 
 // Accountant is a provider that stores user accounts
@@ -75,19 +90,6 @@ type Accountant interface {
 	// which will be serialized / deserialized against
 	// Example: `return &AccountData{}`
 	NewTemplate() Account
-}
-
-// TryLogin tries to login to the provider for each Authenticator&Accountant
-func TryLogin(p Provider, d *Downloader) bool {
-	if lp, ok := p.(Authenticator); ok {
-		if acct, ok := lp.(Accountant); ok {
-			lp.Login(d, AccountManagerFor("", acct))
-		} else {
-			lp.Login(d, nil)
-		}
-		return true
-	}
-	return false
 }
 
 // TryAddAccount asks for user input and stores the account in accounts file and returns `true` --
@@ -130,8 +132,7 @@ func RegisterProvider(p Provider) error {
 // AllProviders returns a list of registered providers
 func AllProviders() []Provider {
 	l := len(providers)
-	ps := append(make([]Provider, 0, l), providers...)
-	return ps
+	return append(make([]Provider, 0, l), providers...)
 }
 
 // GetProvider returns the provider for the given string, or `nil` if there was none.

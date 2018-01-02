@@ -14,6 +14,7 @@ type Console struct {
 	File     *os.File
 	jobs     chan func()
 	rowCount int
+	summary  string
 }
 
 // NewConsole initializes a Console object
@@ -22,6 +23,7 @@ func NewConsole() *Console {
 		os.Stdout,
 		make(chan func()),
 		0,
+		"",
 	}
 	go c.dispatch()
 	return c
@@ -58,7 +60,11 @@ func (c *Console) AddRows(texts ...string) []Row {
 func (c *Console) addRow(text string) Row {
 	id := Row(c.rowCount)
 	c.rowCount++
+	fmt.Fprintf(c.File, "\r%c[2K", 27)
 	fmt.Fprintf(c.File, "%s\n", strings.TrimSpace(text))
+	if c.summary != "" {
+		fmt.Fprint(c.File, c.summary)
+	}
 	return id
 }
 
@@ -80,8 +86,9 @@ func (c *Console) EditRow(id Row, text string) {
 func (c *Console) Summary(text string) {
 	ch := make(chan struct{})
 	c.jobs <- func() {
+		c.summary = text
 		fmt.Fprintf(c.File, "\r%c[2K", 27)
-		fmt.Fprint(c.File, text)
+		fmt.Fprintf(c.File, "%s\r", text)
 		close(ch)
 	}
 	<-ch

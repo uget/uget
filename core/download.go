@@ -2,12 +2,8 @@ package core
 
 import (
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	path "path/filepath"
-	"regexp"
-	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -18,9 +14,9 @@ import (
 type Download struct {
 	*emission.Emitter
 	UpdateInterval time.Duration
-	Response       *http.Response
+	Reader         io.ReadCloser
 	Directory      string
-	filename       string
+	File           File
 	Skip           bool
 }
 
@@ -48,11 +44,12 @@ const (
 	eSkip
 )
 
-// NewDownloadFromResponse initalizes a Download object from the given response
-func NewDownloadFromResponse(r *http.Response) *Download {
+// NewDownloadFrom initalizes a Download object from the given File and ReadCloser
+func NewDownloadFrom(file File, r io.ReadCloser) *Download {
 	return &Download{
-		Emitter:  emission.NewEmitter(),
-		Response: r,
+		Emitter: emission.NewEmitter(),
+		Reader:  r,
+		File:    file,
 	}
 }
 
@@ -73,13 +70,13 @@ func (d *Download) OnSkip(f func()) {
 
 // Start reads the response body and copies its contents to the local file and emits events
 func (d *Download) Start() {
-	log.Debugf("Downloading %v", d.Filename())
-	defer d.Response.Body.Close()
+	log.Debugf("Downloading %v", d.File.Name())
+	defer d.Reader.Close()
 	fi, err := os.Stat(d.Path())
 	if err == nil {
-		if d.Skip && fi.Size() == d.Response.ContentLength {
+		if d.Skip && fi.Size() == d.File.Length() {
 			// File already exists
-			log.Debugf("%v already exists... Returning", d.Filename())
+			log.Debugf("%v already exists... Returning", d.File.Name())
 			d.Emit(eSkip)
 			return
 		}
@@ -95,7 +92,7 @@ func (d *Download) Start() {
 	defer f.Close()
 	done := make(chan error, 1)
 	start := time.Now()
-	reader := &passThru{Reader: d.Response.Body}
+	reader := &passThru{Reader: d.Reader}
 	go func() {
 		_, err := io.Copy(f, reader)
 		done <- err
@@ -111,36 +108,12 @@ func (d *Download) Start() {
 	}
 }
 
-// Filename returns the filename denoted by the response -- about to be deprecated in favor of File
-func (d *Download) Filename() string {
-	if d.filename == "" {
-		disposition := d.Response.Header.Get("Content-Disposition")
-		arr := regexp.MustCompile(`filename="(.*?)"`).FindStringSubmatch(disposition)
-		if len(arr) > 1 {
-			d.filename = arr[1]
-		} else {
-			paths := strings.Split(d.Response.Request.URL.RequestURI(), "/")
-			nameRaw := paths[len(paths)-1]
-			name, err := url.PathUnescape(nameRaw)
-			if err != nil {
-				name = nameRaw
-			}
-			if name == "" {
-				d.filename = "index.html"
-			} else {
-				d.filename = name
-			}
-		}
-	}
-	return d.filename
-}
-
 // Path denotes the local path that the file will be downloaded to
 func (d *Download) Path() string {
-	return path.Join(d.Directory, d.Filename())
+	return path.Join(d.Directory, d.File.Name())
 }
 
 // Length denotes the content length
 func (d *Download) Length() int64 {
-	return d.Response.ContentLength
+	return d.File.Length()
 }

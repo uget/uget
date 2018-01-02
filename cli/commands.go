@@ -94,12 +94,12 @@ func cmdResolve(args []string, opts *options) int {
 			fmt.Printf("%9s   %s", length, f.URL())
 			sum, algo, _ := f.Checksum()
 			pathSegments := strings.Split(f.URL().RequestURI(), "/")
-			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Filename()
+			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Name()
 			if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
 				if sum == "" {
-					fmt.Printf(" (%s)", f.Filename())
+					fmt.Printf(" (%s)", f.Name())
 				} else if uriDiffersFromFile {
-					fmt.Printf(" (%s, %s: %s)", f.Filename(), algo, sum)
+					fmt.Printf(" (%s, %s: %s)", f.Name(), algo, sum)
 				} else {
 					fmt.Printf(" (%s: %s)", algo, sum)
 				}
@@ -122,8 +122,8 @@ func cmdGet(args []string, opts *options) int {
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}
-	client := core.NewDownloaderWith(opts.Get.Jobs)
-	client.Queue.AddLinks(urls, 1)
+	downloader := core.NewDownloaderWith(opts.Get.Jobs)
+	wg := downloader.AddLinks(urls)
 	con := console.NewConsole()
 	fprog := func(name string, progress float64, total float64, speed float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))
@@ -133,18 +133,17 @@ func cmdGet(args []string, opts *options) int {
 	go func() {
 		for {
 			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
-			ch := time.After(500 * time.Millisecond)
-			<-ch
+			<-time.After(500 * time.Millisecond)
 		}
 	}()
-	client.OnDownload(func(download *core.Download) {
+	downloader.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		download.Skip = !opts.Get.NoSkip
 		var progress int64
 		rater := rate.SmoothRate(10)
 		id := con.AddRow(
-			// fmt.Sprintf("%s:", download.Filename()),
-			fprog(download.Filename(), 0, float64(download.Length()), 0),
+			// fmt.Sprintf("%s:", download.File.Name()),
+			fprog(download.File.Name(), 0, float64(download.Length()), 0),
 		)
 		download.OnUpdate(func(prog int64) {
 			diff := prog - progress
@@ -152,28 +151,30 @@ func cmdGet(args []string, opts *options) int {
 			// thread unsafe, but we don't care since it's not meant to be precise
 			rootRater.Add(diff)
 			progress = prog
-			con.EditRow(id, fprog(download.Filename(), float64(prog), float64(download.Length()), float64(rater.Rate())))
+			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.Length()), float64(rater.Rate())))
 		})
 		download.OnSkip(func() {
-			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.Filename()))
+			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.File.Name()))
 		})
 		download.OnDone(func(dur time.Duration, err error) {
 			if err != nil {
-				con.EditRow(id, fmt.Sprintf("%s: error: %v", download.Filename(), err))
+				con.EditRow(id, fmt.Sprintf("%s: error: %v", download.File.Name(), err))
 			} else {
-				con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.Filename(), dur))
+				con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.File.Name(), dur))
 			}
 		})
 	})
-	client.OnDeadend(func(fs *core.FileSpec) {
+	downloader.OnDeadend(func(f core.File) {
 		exit = 1
-		con.AddRow(fmt.Sprintf("%v: Reached deadend.", fs.URL))
+		con.AddRow(fmt.Sprintf("%v: Reached deadend.", f.URL()))
 	})
-	client.OnError(func(fs *core.FileSpec, err error) {
+	downloader.OnError(func(f core.File, err error) {
 		exit = 1
 		con.AddRow(fmt.Sprintf("%v.", err))
 	})
-	client.StartSync()
+	downloader.Start()
+	wg.Wait()
+	fmt.Println()
 	return exit
 }
 
