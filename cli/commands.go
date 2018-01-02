@@ -129,6 +129,12 @@ func cmdGet(args []string, opts *options) int {
 	fprog := func(name string, progress float64, total float64, speed float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))
 	}
+	if opts.Get.DryRun {
+		log.SetOutput(os.Stderr)
+		downloader.DryRun()
+		wg.Wait()
+		return 0
+	}
 	exit := 0
 	rootRater := rate.SmoothRate(10)
 	go func() {

@@ -30,6 +30,7 @@ type urlArgs struct {
 
 type get struct {
 	*urlArgs
+	DryRun bool `short:"n" long:"dry-run" description:"Just output instead of downloading."`
 	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
 	Jobs   int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
 }

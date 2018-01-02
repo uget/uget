@@ -4,17 +4,20 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
 )
 
 // Downloader manages downloads
 type Downloader struct {
 	*emission.Emitter
-	queue *queue
-	jobs  int
-	done  chan struct{}
+	queue  *queue
+	jobs   int
+	done   chan struct{}
+	dryrun bool
 }
 
 const (
@@ -65,6 +68,22 @@ func (d *Downloader) AddURLs(urls []*url.URL) *sync.WaitGroup {
 		d.queue.enqueue(fs, wg)
 	}()
 	return wg
+}
+
+// DryRun makes this downloader print to stdout instead of downloading.
+func (d *Downloader) DryRun() {
+	d.dryrun = true
+	d.Start()
+}
+
+func (d *Downloader) dryRun(format string, is ...interface{}) bool {
+	if d.dryrun {
+		fmt.Printf("Would "+format, is...)
+	} else {
+		capitalized := strings.ToUpper(string(format[0])) + format[1:]
+		log.Infof(capitalized, is...)
+	}
+	return d.dryrun
 }
 
 // Start starts the Downloader asynchronously
@@ -177,12 +196,14 @@ func (d *Downloader) download(j *downloadJob) {
 		}
 	}
 	// Basic provider will always do something
-	if r, err := maxP.Retrieve(j.file); err == nil {
-		download := NewDownloadFrom(j.file, r)
-		d.Emit(eDownload, download)
-		download.Start()
-	} else {
-		d.Emit(eError, j.file, err)
+	if !d.dryRun("fetch %s with %s provider.\n", j.file.Name(), maxP.Name()) {
+		if r, err := maxP.Retrieve(j.file); err == nil {
+			download := NewDownloadFrom(j.file, r)
+			d.Emit(eDownload, download)
+			download.Start()
+		} else {
+			d.Emit(eError, j.file, err)
+		}
 	}
 }
 
