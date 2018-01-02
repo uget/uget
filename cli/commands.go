@@ -123,7 +123,7 @@ func cmdGet(args []string, opts *options) int {
 		opts.Get.Jobs = 1
 	}
 	downloader := core.NewDownloaderWith(opts.Get.Jobs)
-	wg := downloader.AddLinks(urls)
+	wg := downloader.AddURLs(urls)
 	con := console.NewConsole()
 	fprog := func(name string, progress float64, total float64, speed float64) string {
 		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))

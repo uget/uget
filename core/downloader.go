@@ -50,9 +50,9 @@ func (d *Downloader) work() {
 	}
 }
 
-// AddLinks adds a list of URLs to the download queue.
+// AddURLs adds a list of URLs to the download queue.
 // Returns a WaitGroup for when the downloads are complete.
-func (d *Downloader) AddLinks(urls []*url.URL) *sync.WaitGroup {
+func (d *Downloader) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
