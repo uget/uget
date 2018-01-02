@@ -38,13 +38,13 @@ Downloading a multitude of links:
 
 ```go
 // First, get your links from somewhere:
-links := ...
+urls := ...
 // Then, create a new Downloader:
-client := core.NewDownloader()
-// Add those links to the downloader's queue (priority 1):
-client.Queue.AddLinks(links, 1)
+downloader := core.NewDownloader()
+// Add those links to the downloader's queue:
+waitGroup := downloader.AddURLs(urls)
 // Register some callbacks:
-client.OnDownload(func(d *Download) {
+downloader.OnDownload(func(d *Download) {
   // use download for something, e.g.
   d.OnDone(func(d time.Duration, err error) {
     if err != nil {
@@ -55,7 +55,8 @@ client.OnDownload(func(d *Download) {
   })
 })
 // Start downloader (synchronously, blocking).
-client.StartSync()
+downloader.Start()
+waitGroup.Wait()
 // No downloads left, all jobs done.
 ```
 
