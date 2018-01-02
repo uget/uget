@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -14,16 +15,20 @@ import (
 // Downloader manages downloads
 type Downloader struct {
 	*emission.Emitter
-	queue  *queue
-	jobs   int
-	done   chan struct{}
-	dryrun bool
+	queue     *queue
+	jobs      int
+	done      chan struct{}
+	dryrun    bool
+	client    *http.Client
+	Directory string
+	Skip      bool
 }
 
 const (
 	eDownload = iota
 	eDeadend
 	eError
+	eSkip
 )
 
 // NewDownloader creates a new Downloader with 3 workers
@@ -38,6 +43,7 @@ func NewDownloaderWith(workers int) *Downloader {
 		queue:   newQueue(),
 		jobs:    workers,
 		done:    make(chan struct{}, 1),
+		client:  &http.Client{},
 	}
 	return dl
 }
@@ -180,27 +186,56 @@ func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 	return fchan, echan, len(jobs)
 }
 
-// Download retrieves the given File
-func (d *Downloader) download(j *downloadJob) {
-	// Reverse iterate -> last provider is the default provider
-	defer j.wg.Done()
+func max(ps []Provider, f func(Provider) uint) Provider {
 	var max uint
-	var maxP Retriever
-	for _, p := range providers {
-		if getter, ok := p.(Retriever); ok {
-			no := getter.CanRetrieve(j.file)
-			if no > max {
-				maxP = getter
-				max = no
-			}
+	var maxP Provider
+	for _, p := range ps {
+		prio := f(p)
+		if prio > max {
+			maxP = p
+			max = prio
 		}
 	}
+	return maxP
+}
+
+// Download retrieves the given File
+func (d *Downloader) download(j *downloadJob) {
+	defer j.wg.Done()
+	retriever := max(providers, func(p Provider) uint {
+		if getter, ok := p.(Retriever); ok {
+			prio := getter.CanRetrieve(j.file)
+			log.Debugf("%v: provider %v with prio %v", j.file.Name(), p.Name(), prio)
+			return prio
+		}
+		return 0
+	}).(Retriever)
+
+	// Reverse iterate -> last provider is the default provider
 	// Basic provider will always do something
-	if !d.dryRun("fetch %s with %s provider.\n", j.file.Name(), maxP.Name()) {
-		if r, err := maxP.Retrieve(j.file); err == nil {
-			download := NewDownloadFrom(j.file, r)
-			d.Emit(eDownload, download)
-			download.Start()
+	fetcher := Download(j.file).Via(retriever).To(d.Directory)
+	log.Debugf("INIT FetchOne, path: %s", fetcher.Path())
+	fi, err := os.Stat(fetcher.Path())
+	if err == nil {
+		log.Debugf("local: %v, remote: %v", fi.Size(), fetcher.File.Length())
+		if d.Skip && fi.Size() == fetcher.File.Length() {
+			log.Debugf("%v already exists... Returning", fetcher.File.Name())
+			d.Emit(eSkip, fetcher)
+			return
+		}
+	} else if !os.IsNotExist(err) {
+		d.Emit(eError, 0, err)
+		return
+	}
+	if !d.dryRun("fetch %s with %s provider.\n", j.file.Name(), retriever.Name()) {
+		if req, err := retriever.Retrieve(j.file); err == nil {
+			resp, err := d.client.Do(req)
+			if err != nil {
+				d.Emit(eError, j.file, err)
+				return
+			}
+			d.Emit(eDownload, fetcher)
+			fetcher.Start(resp.Body)
 		} else {
 			d.Emit(eError, j.file, err)
 		}
@@ -208,8 +243,13 @@ func (d *Downloader) download(j *downloadJob) {
 }
 
 // OnDownload calls the given hook when a new Download is started. The download object is passed.
-func (d *Downloader) OnDownload(f func(*Download)) {
+func (d *Downloader) OnDownload(f func(*Getter)) {
 	d.On(eDownload, f)
+}
+
+// OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
+func (d *Downloader) OnSkip(f func(*Getter)) {
+	d.On(eSkip, f)
 }
 
 // OnDeadend calls the given hook when a Deadend instruction was returned by the provider.

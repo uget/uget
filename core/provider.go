@@ -3,7 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
-	"io"
+	"net/http"
 	"net/url"
 )
 
@@ -66,7 +66,8 @@ type SingleResolver interface {
 type Retriever interface {
 	Provider
 
-	Retrieve(File) (io.ReadCloser, error)
+	// returns the Request object that will lead to the file
+	Retrieve(File) (*http.Request, error)
 
 	// Determines whether this provider can fetch the resource
 	// pointed to by the given URL.

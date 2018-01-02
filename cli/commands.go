@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils/console"
@@ -124,33 +124,38 @@ func cmdGet(args []string, opts *options) int {
 		opts.Get.Jobs = 1
 	}
 	downloader := core.NewDownloaderWith(opts.Get.Jobs)
+	downloader.Skip = !opts.Get.NoSkip
 	wg := downloader.AddURLs(urls)
-	con := console.NewConsole()
-	fprog := func(name string, progress float64, total float64, speed float64) string {
-		return fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed))
-	}
 	if opts.Get.DryRun {
-		log.SetOutput(os.Stderr)
+		logrus.SetOutput(os.Stderr)
 		downloader.DryRun()
 		wg.Wait()
 		return 0
 	}
 	exit := 0
+	con := console.NewConsole()
 	rootRater := rate.SmoothRate(10)
+	fprog := func(name string, progress, total, speed float64, via string) string {
+		s := fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s%s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed), via)
+		return s
+	}
 	go func() {
 		for {
 			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
 			<-time.After(500 * time.Millisecond)
 		}
 	}()
-	downloader.OnDownload(func(download *core.Download) {
+	downloader.OnDownload(func(download *core.Getter) {
 		download.UpdateInterval = 500 * time.Millisecond
-		download.Skip = !opts.Get.NoSkip
 		var progress int64
 		rater := rate.SmoothRate(10)
+		via := ""
+		if download.Provider != download.File.Provider() {
+			via = fmt.Sprintf(" (via %s)", download.Provider.Name())
+		}
 		id := con.AddRow(
 			// fmt.Sprintf("%s:", download.File.Name()),
-			fprog(download.File.Name(), 0, float64(download.Length()), 0),
+			fprog(download.File.Name(), 0, float64(download.File.Length()), 0, via),
 		)
 		download.OnUpdate(func(prog int64) {
 			diff := prog - progress
@@ -158,10 +163,7 @@ func cmdGet(args []string, opts *options) int {
 			// thread unsafe, but we don't care since it's not meant to be precise
 			rootRater.Add(diff)
 			progress = prog
-			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.Length()), float64(rater.Rate())))
-		})
-		download.OnSkip(func() {
-			con.EditRow(id, fmt.Sprintf("%s: skipped...", download.File.Name()))
+			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.File.Length()), float64(rater.Rate()), via))
 		})
 		download.OnDone(func(dur time.Duration, err error) {
 			if err != nil {
@@ -170,6 +172,9 @@ func cmdGet(args []string, opts *options) int {
 				con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.File.Name(), dur))
 			}
 		})
+	})
+	downloader.OnSkip(func(download *core.Getter) {
+		con.AddRow(fmt.Sprintf("%s: skipped...", download.File.Name()))
 	})
 	downloader.OnDeadend(func(f core.File) {
 		exit = 1
@@ -200,19 +205,19 @@ func cmdDaemon(args []string, opts *options) int {
 	cmd := exec.Command(os.Args[0], append([]string{"server"}, os.Args[2:]...)...)
 	fi, err := os.OpenFile("server.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		log.Error(err)
+		logrus.Error(err)
 	}
 	cmd.Stdout, cmd.Stderr = fi, fi
 	err = cmd.Start()
 	if err != nil {
-		log.Error("Error starting the daemon: ", err, ".")
+		logrus.Error("Error starting the daemon: ", err, ".")
 		return 1
 	}
-	log.Info("Daemon running with pid ", cmd.Process.Pid)
+	logrus.Info("Daemon running with pid ", cmd.Process.Pid)
 	return 0
 }
 
 func cmdPush(args []string, opts *options) int {
-	log.Error("Not implemented yet.")
+	logrus.Error("Not implemented yet.")
 	return 3
 }
