@@ -13,4 +13,5 @@ type File interface {
 	// Filename
 	Name() string
 	Checksum() (string, string, hash.Hash)
+	Provider() Provider
 }
