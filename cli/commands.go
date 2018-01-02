@@ -29,6 +29,7 @@ func cmdAddAccount(args []string, opt *options) int {
 		prompter.Error(err.Error())
 		return 1
 	}
+	prompter.Success()
 	return 0
 }
 

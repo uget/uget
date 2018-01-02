@@ -60,5 +60,5 @@ func (c cliPrompter) Error(display string) {
 }
 
 func (c cliPrompter) Success() {
-	fmt.Fprintf(os.Stderr, "[%s] Success!\n", c.prefix)
+	fmt.Fprintf(os.Stderr, "[%s] Success.\n", c.prefix)
 }
