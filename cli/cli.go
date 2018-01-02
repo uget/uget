@@ -16,8 +16,11 @@ type options struct {
 	Server   server   `command:"server"`
 	Daemon   daemon   `command:"daemon"`
 	Push     push     `command:"push"`
+	Version  version  `command:"version"`
 	Unknowns map[string]string
 }
+
+type version struct{}
 
 type server struct {
 	Port     uint16 `short:"p" long:"port" description:"port the server listens on" default:"9666"`
@@ -53,6 +56,10 @@ type accountsList struct{}
 type accountsSelect struct{}
 
 /* Commands */
+
+func (v *version) Execute(args []string) error {
+	return command(args, cmdVersion)
+}
 
 func (cmd *accountsAdd) Execute(args []string) error {
 	return command(args, cmdAddAccount)

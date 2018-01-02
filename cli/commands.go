@@ -114,6 +114,11 @@ func cmdResolve(args []string, opts *options) int {
 	return 0
 }
 
+func cmdVersion(args []string, opts *options) int {
+	fmt.Println("uget v" + core.Version)
+	return 0
+}
+
 func cmdGet(args []string, opts *options) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "No arguments provided")
