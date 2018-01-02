@@ -44,15 +44,22 @@ downloader := core.NewDownloader()
 // Add those links to the downloader's queue:
 waitGroup := downloader.AddURLs(urls)
 // Register some callbacks:
-downloader.OnDownload(func(d *Download) {
-  // use download for something, e.g.
-  d.OnDone(func(d time.Duration, err error) {
-    if err != nil {
-      // download failed. Handle error.
-      return
-    }
-    // Download finished.
-  })
+downloader.OnDownload(func(getter *core.Getter) {
+	// Access the File field:
+	// getter.File.Name()
+	// getter.File.URL()
+	// getter.File.Provider()
+	// getter.File.Length()
+	// checksum, algorithmName, hashObject := getter.File.Checksum()
+
+	// use download for something, e.g. registering another callback:
+	getter.OnDone(func(d time.Duration, err error) {
+		if err != nil {
+			// download failed. Handle error.
+			return
+		}
+		// Download finished.
+	})
 })
 // Start downloader (synchronously, blocking).
 downloader.Start()
