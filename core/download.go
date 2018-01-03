@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
 )
 
@@ -69,10 +70,11 @@ func (g *Download) start() {
 	defer close(g.done)
 	_, err := io.Copy(g.file, g.reader)
 	if err != nil {
-		g.errMtx.RLock()
-		defer g.errMtx.RUnlock()
+		g.errMtx.Lock()
+		defer g.errMtx.Unlock()
 		g.err = err
 	}
+	logrus.Debugf("Download#start: %v done, err: %v.", g.File.Name(), err)
 }
 
 // Progress is an object that represents a long operation that can track a progress

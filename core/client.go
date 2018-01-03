@@ -255,8 +255,8 @@ func (d *Client) download(j *downloadJob) {
 				return
 			}
 			defer resp.Body.Close()
-			log.Debugf("REQUEST: %v\n", resp.Request.Header)
-			log.Debugf("RESPONSE: %v\n", resp.Header)
+			log.Debugf("REQUEST: %v", resp.Request.Header)
+			log.Debugf("RESPONSE: %v", resp.Header)
 
 			reader := &passThru{Reader: resp.Body}
 			openFlags := os.O_WRONLY | os.O_CREATE
@@ -269,6 +269,7 @@ func (d *Client) download(j *downloadJob) {
 				d.Emit(eError, 0, err)
 				return
 			}
+			defer f.Close()
 			getter := download(j.file, reader).to(f).via(retriever)
 			d.Emit(eDownload, getter)
 			getter.start()
