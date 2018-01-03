@@ -2,11 +2,14 @@ package core
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
@@ -15,13 +18,14 @@ import (
 // Client manages downloads
 type Client struct {
 	*emission.Emitter
-	queue     *queue
-	jobs      int
-	done      chan struct{}
-	dryrun    bool
-	client    *http.Client
-	Directory string
-	Skip      bool
+	queue      *queue
+	jobs       int
+	done       chan struct{}
+	dryrun     bool
+	client     *http.Client
+	Directory  string
+	Skip       bool
+	NoContinue bool
 }
 
 const (
@@ -68,7 +72,7 @@ func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 		defer wg.Done()
 		fs, err := resolveSync(urls)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err.Error())
+			fmt.Fprintf(os.Stderr, "Error while resolving: %v\n", err)
 			return
 		}
 		d.queue.enqueue(fs, wg)
@@ -76,7 +80,7 @@ func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	return wg
 }
 
-// DryRun makes this downloader print to stdout instead of downloading.
+// DryRun starts this downloader in dryrun mode, printing to stdout instead of downloading.
 func (d *Client) DryRun() {
 	d.dryrun = true
 	d.Start()
@@ -126,6 +130,8 @@ func (d *Client) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 }
 
 func resolveSync(urls []*url.URL) ([]File, error) {
+	log.Debug("ENTER ResolveSync.")
+	defer log.Debug("EXIT ResolveSync.")
 	fs := make([]File, 0, len(urls))
 	fchan, echan, len := resolve(urls)
 	for i := 0; i < len; i++ {
@@ -150,6 +156,7 @@ func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 		}).(resolver)
 		byProvider[resolver] = append(byProvider[resolver], u)
 	}
+	log.Debug("Resolve: Grouped the URLs.")
 	jobs := make([]resolveJob, 0, len(urls))
 	for p, urls := range byProvider {
 		if mr, ok := p.(MultiResolver); ok {
@@ -171,6 +178,7 @@ func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 			}
 		}
 	}
+	log.Debug("Resolve: Queued all jobs.")
 	fchan := make(chan []File)
 	echan := make(chan error)
 	for _, job := range jobs {
@@ -211,17 +219,26 @@ func (d *Client) download(j *downloadJob) {
 		return 0
 	}).(Retriever)
 
-	// Reverse iterate -> last provider is the default provider
-	// Basic provider will always do something
-	fetcher := download(j.file).Via(retriever).To(d.Directory)
-	log.Debugf("INIT Getter, path: %s", fetcher.Path())
-	fi, err := os.Stat(fetcher.Path())
+	path := filepath.Join(d.Directory, j.file.Name())
+	fi, err := os.Stat(path)
+	headers := map[string]string{}
 	if err == nil {
-		log.Debugf("local: %v, remote: %v", fi.Size(), fetcher.File.Size())
-		if d.Skip && fi.Size() == fetcher.File.Size() {
-			log.Debugf("%v already exists... Returning", fetcher.File.Name())
-			d.Emit(eSkip, fetcher)
-			return
+		log.Debugf("local: %v, remote: %v", fi.Size(), j.file.Size())
+		if fi.Size() == j.file.Size() {
+			if d.Skip {
+				log.Debugf("%v already exists... returning", j.file.Name())
+				d.Emit(eSkip, j.file)
+				return
+			}
+			log.Debugf("%v already exists... deleting", j.file.Name())
+			err = os.Remove(path)
+			if err != nil {
+				d.Emit(eError, j.file, err)
+				return
+			}
+		} else if !d.NoContinue {
+			headers["Range"] = fmt.Sprintf("bytes=%d-", fi.Size())
+			log.Debugf("Adding range param: %s", headers["Range"])
 		}
 	} else if !os.IsNotExist(err) {
 		d.Emit(eError, 0, err)
@@ -229,17 +246,58 @@ func (d *Client) download(j *downloadJob) {
 	}
 	if !d.dryRun("fetch %s with %s provider.\n", j.file.Name(), retriever.Name()) {
 		if req, err := retriever.Retrieve(j.file); err == nil {
+			for k, v := range headers {
+				req.Header.Set(k, v)
+			}
 			resp, err := d.client.Do(req)
 			if err != nil {
 				d.Emit(eError, j.file, err)
 				return
 			}
-			d.Emit(eDownload, fetcher)
-			fetcher.Start(resp.Body)
+			defer resp.Body.Close()
+			log.Debugf("REQUEST: %v\n", resp.Request.Header)
+			log.Debugf("RESPONSE: %v\n", resp.Header)
+
+			reader := &passThru{Reader: resp.Body}
+			openFlags := os.O_WRONLY | os.O_CREATE
+			if resp.StatusCode == http.StatusPartialContent {
+				openFlags |= os.O_APPEND
+				reader.total = fi.Size()
+			}
+			f, err := os.OpenFile(path, openFlags, 0644)
+			if err != nil {
+				d.Emit(eError, 0, err)
+				return
+			}
+			getter := download(j.file, reader).to(f).via(retriever)
+			d.Emit(eDownload, getter)
+			getter.start()
 		} else {
 			d.Emit(eError, j.file, err)
 		}
 	}
+}
+
+// PassThru wraps an existing io.Reader.
+//
+// It simply forwards the Read() call, while displaying
+// the results from individual calls to it.
+type passThru struct {
+	io.Reader
+	total int64 // Total # of bytes transferred
+}
+
+// Read 'overrides' the underlying io.Reader's Read method.
+// This is the one that will be called by io.Copy(). We simply
+// use it to keep track of byte counts and then forward the call.
+func (pt *passThru) Read(p []byte) (int, error) {
+	n, err := pt.Reader.Read(p)
+	atomic.AddInt64(&pt.total, int64(n))
+	return n, err
+}
+
+func (pt *passThru) Progress() int64 {
+	return atomic.LoadInt64(&pt.total)
 }
 
 // OnDownload calls the given hook when a new Download is started. The download object is passed.
@@ -247,8 +305,8 @@ func (d *Client) OnDownload(f func(*Download)) {
 	d.On(eDownload, f)
 }
 
-// OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
-func (d *Client) OnSkip(f func(*Download)) {
+// OnSkip calls the given hook when a download is skipped
+func (d *Client) OnSkip(f func(File)) {
 	d.On(eSkip, f)
 }
 

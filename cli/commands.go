@@ -130,6 +130,7 @@ func cmdGet(args []string, opts *options) int {
 	}
 	downloader := core.NewClientWith(opts.Get.Jobs)
 	downloader.Skip = !opts.Get.NoSkip
+	downloader.NoContinue = opts.Get.NoContinue
 	wg := downloader.AddURLs(urls)
 	if opts.Get.DryRun {
 		logrus.SetOutput(os.Stderr)
@@ -139,47 +140,76 @@ func cmdGet(args []string, opts *options) int {
 	}
 	exit := 0
 	con := console.NewConsole()
-	rootRater := rate.SmoothRate(10)
 	fprog := func(name string, progress, total, speed float64, via string) string {
 		s := fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s%s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed), via)
 		return s
 	}
-	go func() {
-		for {
+	type info struct {
+		dl    *core.Download
+		row   console.Row
+		rater rate.Rater
+		via   string
+		prog  int64
+		start time.Time
+	}
+
+	dlChan := make(chan *core.Download)
+	done := make(chan struct{})
+	update := func(rootRater rate.Rater, downloads []*info) {
+		if len(downloads) > 0 {
+			for _, inf := range downloads {
+				diff := inf.dl.Progress() - inf.prog
+				if diff != 0 {
+					inf.rater.Add(diff)
+					rootRater.Add(diff)
+					inf.prog = inf.dl.Progress()
+					if inf.dl.Done() {
+						if err := inf.dl.Err(); err != nil {
+							con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), err))
+						} else {
+							con.EditRow(inf.row, fmt.Sprintf("%s: done. Duration: %v", inf.dl.File.Name(), time.Since(inf.start)))
+						}
+					} else {
+						con.EditRow(inf.row, fprog(inf.dl.File.Name(), float64(inf.prog), float64(inf.dl.File.Size()), float64(inf.rater.Rate()), inf.via))
+					}
+				}
+			}
 			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
-			<-time.After(500 * time.Millisecond)
+		}
+	}
+	go func() {
+		defer close(done)
+		downloads := make([]*info, 0, len(urls))
+		rootRater := rate.SmoothRate(10)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case download, ok := <-dlChan:
+				if !ok {
+					update(rootRater, downloads)
+					fmt.Println() // newline after summary
+					return
+				}
+				inf := &info{dl: download, prog: download.Progress(), start: time.Now()}
+				inf.rater = rate.SmoothRate(10)
+				if download.Provider != download.File.Provider() {
+					inf.via = fmt.Sprintf(" (via %s)", download.Provider.Name())
+				}
+				inf.row = con.AddRow(
+					fprog(download.File.Name(), float64(inf.prog), float64(download.File.Size()), 0, inf.via),
+				)
+				downloads = append(downloads, inf)
+			case <-ticker.C:
+				update(rootRater, downloads)
+			}
 		}
 	}()
 	downloader.OnDownload(func(download *core.Download) {
-		download.UpdateInterval = 500 * time.Millisecond
-		var progress int64
-		rater := rate.SmoothRate(10)
-		via := ""
-		if download.Provider != download.File.Provider() {
-			via = fmt.Sprintf(" (via %s)", download.Provider.Name())
-		}
-		id := con.AddRow(
-			// fmt.Sprintf("%s:", download.File.Name()),
-			fprog(download.File.Name(), 0, float64(download.File.Size()), 0, via),
-		)
-		download.OnUpdate(func(prog int64) {
-			diff := prog - progress
-			rater.Add(diff)
-			// thread unsafe, but we don't care since it's not meant to be precise
-			rootRater.Add(diff)
-			progress = prog
-			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.File.Size()), float64(rater.Rate()), via))
-		})
-		download.OnDone(func(dur time.Duration, err error) {
-			if err != nil {
-				con.EditRow(id, fmt.Sprintf("%s: error: %v", download.File.Name(), err))
-			} else {
-				con.EditRow(id, fmt.Sprintf("%s: done. Duration: %v", download.File.Name(), dur))
-			}
-		})
+		dlChan <- download
 	})
-	downloader.OnSkip(func(download *core.Download) {
-		con.AddRow(fmt.Sprintf("%s: skipped...", download.File.Name()))
+	downloader.OnSkip(func(file core.File) {
+		con.AddRow(fmt.Sprintf("%s: skipped...", file.Name()))
 	})
 	downloader.OnDeadend(func(f core.File) {
 		exit = 1
@@ -191,7 +221,8 @@ func cmdGet(args []string, opts *options) int {
 	})
 	downloader.Start()
 	wg.Wait()
-	fmt.Println()
+	close(dlChan)
+	<-done
 	return exit
 }
 

@@ -33,9 +33,10 @@ type urlArgs struct {
 
 type get struct {
 	*urlArgs
-	DryRun bool `short:"n" long:"dry-run" description:"Just output instead of downloading."`
-	NoSkip bool `short:"S" long:"no-skip" description:"Don't skip files that already exist"`
-	Jobs   int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
+	DryRun     bool `short:"n" long:"dry-run" description:"Just output instead of downloading."`
+	NoContinue bool `short:"C" long:"no-continue" description:"Redownload entire file instead of continuing previous download."`
+	NoSkip     bool `short:"S" long:"no-skip" description:"Redownload file even if size is correct"`
+	Jobs       int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
 }
 
 type resolve struct {
