@@ -3,8 +3,12 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/jessevdk/go-flags"
+	"github.com/uget/uget/core"
 )
 
 /* CLI specification */
@@ -109,6 +113,8 @@ func command(args []string, f func([]string, *options) int) error {
 
 // RunApp sets up parser and runs app with passed arguments. Returns exit code.
 func RunApp(arguments []string) int {
+	logrus.Infof("==== uget %v - %v ====", core.Version, time.Now().Local().Format("15:04:05"))
+	logrus.Infof("==== running with args %s", core.Version, strings.Join(arguments, " "))
 	opts := &options{
 		Unknowns: map[string]string{},
 	}

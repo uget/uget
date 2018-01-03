@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/chuckpreslar/emission"
 )
 
@@ -91,13 +91,14 @@ func (d *Client) dryRun(format string, is ...interface{}) bool {
 		fmt.Printf("Would "+format, is...)
 	} else {
 		capitalized := strings.ToUpper(string(format[0])) + format[1:]
-		log.Infof(capitalized, is...)
+		logrus.Infof(capitalized, is...)
 	}
 	return d.dryrun
 }
 
 // Start starts the Client asynchronously
 func (d *Client) Start() {
+	logrus.Debugf("Client#Start: %v workers", d.jobs)
 	for _, p := range providers {
 		if cfg, ok := p.(Configured); ok {
 			var am *AccountManager
@@ -130,8 +131,6 @@ func (d *Client) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 }
 
 func resolveSync(urls []*url.URL) ([]File, error) {
-	log.Debug("ENTER ResolveSync.")
-	defer log.Debug("EXIT ResolveSync.")
 	fs := make([]File, 0, len(urls))
 	fchan, echan, len := resolve(urls)
 	for i := 0; i < len; i++ {
@@ -139,6 +138,7 @@ func resolveSync(urls []*url.URL) ([]File, error) {
 		case files := <-fchan:
 			fs = append(fs, files...)
 		case err := <-echan:
+			logrus.Infof("Client#resolveSync: error received: %v", err)
 			return fs, err
 		}
 	}
@@ -146,6 +146,7 @@ func resolveSync(urls []*url.URL) ([]File, error) {
 }
 
 func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
+	logrus.Debugf("Client#resolve: %v URLs", len(urls))
 	byProvider := make(map[resolver][]*url.URL)
 	for _, u := range urls {
 		resolver := FindProvider(func(p Provider) bool {
@@ -156,7 +157,7 @@ func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 		}).(resolver)
 		byProvider[resolver] = append(byProvider[resolver], u)
 	}
-	log.Debug("Resolve: Grouped the URLs.")
+	logrus.Debug("Client#resolve: grouped.")
 	jobs := make([]resolveJob, 0, len(urls))
 	for p, urls := range byProvider {
 		if mr, ok := p.(MultiResolver); ok {
@@ -178,7 +179,7 @@ func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 			}
 		}
 	}
-	log.Debug("Resolve: Queued all jobs.")
+	logrus.Debug("Client#resolve: jobs queued.")
 	fchan := make(chan []File)
 	echan := make(chan error)
 	for _, job := range jobs {
@@ -213,7 +214,7 @@ func (d *Client) download(j *downloadJob) {
 	retriever := max(providers, func(p Provider) uint {
 		if getter, ok := p.(Retriever); ok {
 			prio := getter.CanRetrieve(j.file)
-			log.Debugf("%v: provider %v with prio %v", j.file.Name(), p.Name(), prio)
+			logrus.Debugf("Client#download (%v): provider %v with prio %v", j.file.Name(), p.Name(), prio)
 			return prio
 		}
 		return 0
@@ -223,14 +224,14 @@ func (d *Client) download(j *downloadJob) {
 	fi, err := os.Stat(path)
 	headers := map[string]string{}
 	if err == nil {
-		log.Debugf("local: %v, remote: %v", fi.Size(), j.file.Size())
+		logrus.Debugf("Client#download (%v): local: %v, remote: %v", j.file.Name(), fi.Size(), j.file.Size())
 		if fi.Size() == j.file.Size() {
 			if d.Skip {
-				log.Debugf("%v already exists... returning", j.file.Name())
+				logrus.Debugf("Client#download (%v): already exists... returning", j.file.Name())
 				d.Emit(eSkip, j.file)
 				return
 			}
-			log.Debugf("%v already exists... deleting", j.file.Name())
+			logrus.Debugf("Client#download (%v): already exists... deleting", j.file.Name())
 			err = os.Remove(path)
 			if err != nil {
 				d.Emit(eError, j.file, err)
@@ -238,13 +239,13 @@ func (d *Client) download(j *downloadJob) {
 			}
 		} else if !d.NoContinue {
 			headers["Range"] = fmt.Sprintf("bytes=%d-", fi.Size())
-			log.Debugf("Adding range param: %s", headers["Range"])
+			logrus.Infof("Client#download (%v): +header range %s", j.file.Name(), headers["Range"])
 		}
 	} else if !os.IsNotExist(err) {
 		d.Emit(eError, 0, err)
 		return
 	}
-	if !d.dryRun("fetch %s with %s provider.\n", j.file.Name(), retriever.Name()) {
+	if !d.dryRun("fetch %s with %s provider.", j.file.Name(), retriever.Name()) {
 		if req, err := retriever.Retrieve(j.file); err == nil {
 			for k, v := range headers {
 				req.Header.Set(k, v)
@@ -255,9 +256,11 @@ func (d *Client) download(j *downloadJob) {
 				return
 			}
 			defer resp.Body.Close()
-			log.Debugf("REQUEST: %v", resp.Request.Header)
-			log.Debugf("RESPONSE: %v", resp.Header)
-
+			logrus.Debugf("Client#download (%v): > %v", j.file.Name(), resp.Request.Header)
+			logrus.Debugf("Client#download (%v): %v", j.file.Name(), resp.Status)
+			for k, v := range resp.Header {
+				logrus.Debugf("  < %v: %v", k, v)
+			}
 			reader := &passThru{Reader: resp.Body}
 			openFlags := os.O_WRONLY | os.O_CREATE
 			if resp.StatusCode == http.StatusPartialContent {
@@ -277,6 +280,7 @@ func (d *Client) download(j *downloadJob) {
 			d.Emit(eError, j.file, err)
 		}
 	}
+	logrus.Debugf("Client#download (%v): EXIT", j.file.Name())
 }
 
 // PassThru wraps an existing io.Reader.

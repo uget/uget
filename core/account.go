@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/howeyc/fsnotify"
 	"github.com/uget/uget/utils"
 )
@@ -77,7 +77,7 @@ func managerFor(file string) *internalAccMgr {
 	defer mtx.Unlock()
 	if managers[file] == nil {
 		if err := os.MkdirAll(path.Dir(file), 0755); err != nil {
-			log.Errorf("Could not create parent dirs of %s", file)
+			logrus.Errorf("core.managerFor: could not create parent dirs of %s", file)
 		}
 		m := &internalAccMgr{jobber{make(chan *asyncJob)}, file, nil}
 		managers[file] = m
@@ -203,23 +203,23 @@ func (m *internalAccMgr) reload() {
 		if os.IsNotExist(err) {
 			f, err = os.Create(m.file)
 			if err != nil {
-				log.Errorf("Could not create file %s: %v", m.file, err)
+				logrus.Errorf("internalAccMgr#reload: create %s: %v", m.file, err)
 			} else {
 				defer f.Close()
 				_, err = f.WriteString("{}")
 				if err != nil {
-					log.Errorf("Could not write to file %s: %v", m.file, err)
+					logrus.Errorf("internalAccMgr#reload: write %s: %v", m.file, err)
 				}
 			}
 			return
 		}
-		log.Errorf("Could not open file %s: %v", m.file, err)
+		logrus.Errorf("internalAccMgr#reload: open %s: %v", m.file, err)
 		return
 	}
 	defer f.Close()
 	bytes, err := ioutil.ReadAll(f)
 	if err != nil {
-		log.Errorf("Could not read file %s: %v", m.file, err)
+		logrus.Errorf("internalAccMgr#reload: read %s: %v", m.file, err)
 		return
 	}
 	json.Unmarshal(bytes, &m.root)
@@ -229,10 +229,10 @@ func (m *internalAccMgr) dispatch() {
 	m.reload()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Errorf("Could not initialize file watcher")
+		logrus.Errorf("internalAccMgr#dispatch: could not initialize file watcher")
 	} else {
 		if err = watcher.Watch(m.file); err != nil {
-			log.Errorf("Cannot watch %s", m.file)
+			logrus.Errorf("internalAccMgr#dispatch: cannot watch %s", m.file)
 		}
 	}
 	for {
@@ -242,14 +242,13 @@ func (m *internalAccMgr) dispatch() {
 				m.reload()
 			}
 		case err := <-watcher.Error:
-			log.Errorf("Error watching %s: %v", m.file, err)
+			logrus.Errorf("internalAccMgr#reload: error watching %s: %v", m.file, err)
 		case job := <-m.jobQueue:
 			job.work()
-			l := log.WithField("file", m.file)
 			if err := m.save(); err != nil {
-				l.WithField("err", err).Error("save ERROR!")
+				logrus.Errorf("internalAccMgr#reload: error saving %v", m.file)
 			} else {
-				l.Debug("save SUCCESS!")
+				logrus.Debugf("internalAccMgr#reload: sucess saving %v", m.file)
 			}
 			// this is after m.save() because of race conditions that occur if main thread exits.
 			// TODO: fix the race condition and move this up.

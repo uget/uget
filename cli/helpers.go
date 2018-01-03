@@ -7,14 +7,14 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/core"
 )
 
 func urlsFromFile(urls *[]*url.URL, f string) error {
 	file, err := os.Open(f)
 	if err != nil {
-		log.WithField("file", f).Error("could not open")
+		logrus.Errorf("helpers.urlsFromFile: could not open %v", f)
 		return err
 	}
 	defer file.Close()
@@ -23,13 +23,14 @@ func urlsFromFile(urls *[]*url.URL, f string) error {
 	for scanner.Scan() {
 		u, err := url.Parse(scanner.Text())
 		if err != nil {
+			logrus.Errorf("helpers.urlsFromFile: url parse: %v", err)
 			return err
 		}
 		*urls = append(*urls, u)
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Error(err)
+		logrus.Errorf("helpers.urlsFromFile: scanner err: %v", err)
 		return err
 	}
 	return nil

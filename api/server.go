@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/Unknwon/macaron"
 	"github.com/uget/cnlv2"
 	"github.com/uget/uget/core"
@@ -25,7 +25,7 @@ var downloader = core.NewClient()
 type macaronLog struct{}
 
 func (w macaronLog) Write(p []byte) (int, error) {
-	log.Info(strings.TrimSpace(string(p)))
+	logrus.Info(strings.TrimSpace(string(p)))
 	return len(p), nil
 }
 
@@ -55,7 +55,7 @@ func (s *Server) Run() {
 }
 
 func addLinks(links []string) {
-	log.Debugf("Added %v links!", len(links))
+	logrus.Debugf("Added %v links!", len(links))
 }
 
 func (s *Server) createContainer(c *macaron.Context) {
