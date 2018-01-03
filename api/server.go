@@ -20,7 +20,7 @@ type Server struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
-var downloader = core.NewDownloader()
+var downloader = core.NewClient()
 
 type macaronLog struct{}
 

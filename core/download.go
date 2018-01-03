@@ -15,8 +15,8 @@ const (
 	eDone
 )
 
-// Getter is an object that fetches a single remote file
-type Getter struct {
+// Download is an object that fetches a single remote file
+type Download struct {
 	*emission.Emitter
 	UpdateInterval time.Duration
 	Provider       Provider
@@ -24,26 +24,26 @@ type Getter struct {
 	Directory      string
 }
 
-// Download initalizes a Getter object from the given File and ReadCloser
-func Download(file File) *Getter {
-	return &Getter{
+// download initalizes a Download object from the given File and ReadCloser
+func download(file File) *Download {
+	return &Download{
 		Emitter: emission.NewEmitter(),
 		File:    file,
 	}
 }
 
-func (f *Getter) To(dir string) *Getter {
+func (f *Download) To(dir string) *Download {
 	f.Directory = dir
 	return f
 }
 
-func (f *Getter) Via(p Provider) *Getter {
+func (f *Download) Via(p Provider) *Download {
 	f.Provider = p
 	return f
 }
 
 // Start reads the response body and copies its contents to the local file and emits events
-func (fetch *Getter) Start(r io.ReadCloser) {
+func (fetch *Download) Start(r io.ReadCloser) {
 	log.Debugf("Downloading %v", fetch.File.Name())
 	defer r.Close()
 	f, err := os.Create(fetch.Path())
@@ -71,17 +71,17 @@ func (fetch *Getter) Start(r io.ReadCloser) {
 }
 
 // Path denotes the local path that the file will be downloaded to
-func (f *Getter) Path() string {
+func (f *Download) Path() string {
 	return path.Join(f.Directory, f.File.Name())
 }
 
 // OnUpdate runs given hook every `f.UpdateInterval` with progress information
-func (f *Getter) OnUpdate(fn func(int64)) {
+func (f *Download) OnUpdate(fn func(int64)) {
 	f.On(eUpdate, fn)
 }
 
 // OnDone runs given hook upon finish. Passes elapsed time and error that caused the stop, if any.
-func (f *Getter) OnDone(fn func(time.Duration, error)) {
+func (f *Download) OnDone(fn func(time.Duration, error)) {
 	f.On(eDone, fn)
 }
 

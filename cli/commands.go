@@ -81,7 +81,7 @@ func cmdResolve(args []string, opts *options) int {
 		return 1
 	}
 	urls := grabURLs(args, opts.Resolve.urlArgs)
-	client := core.NewDownloader()
+	client := core.NewClient()
 	files, err := client.ResolveSync(urls)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error resolving: %v\n", err.Error())
@@ -128,7 +128,7 @@ func cmdGet(args []string, opts *options) int {
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}
-	downloader := core.NewDownloaderWith(opts.Get.Jobs)
+	downloader := core.NewClientWith(opts.Get.Jobs)
 	downloader.Skip = !opts.Get.NoSkip
 	wg := downloader.AddURLs(urls)
 	if opts.Get.DryRun {
@@ -150,7 +150,7 @@ func cmdGet(args []string, opts *options) int {
 			<-time.After(500 * time.Millisecond)
 		}
 	}()
-	downloader.OnDownload(func(download *core.Getter) {
+	downloader.OnDownload(func(download *core.Download) {
 		download.UpdateInterval = 500 * time.Millisecond
 		var progress int64
 		rater := rate.SmoothRate(10)
@@ -178,7 +178,7 @@ func cmdGet(args []string, opts *options) int {
 			}
 		})
 	})
-	downloader.OnSkip(func(download *core.Getter) {
+	downloader.OnSkip(func(download *core.Download) {
 		con.AddRow(fmt.Sprintf("%s: skipped...", download.File.Name()))
 	})
 	downloader.OnDeadend(func(f core.File) {

@@ -12,8 +12,8 @@ import (
 	"github.com/chuckpreslar/emission"
 )
 
-// Downloader manages downloads
-type Downloader struct {
+// Client manages downloads
+type Client struct {
 	*emission.Emitter
 	queue     *queue
 	jobs      int
@@ -31,14 +31,14 @@ const (
 	eSkip
 )
 
-// NewDownloader creates a new Downloader with 3 workers
-func NewDownloader() *Downloader {
-	return NewDownloaderWith(3)
+// NewClient creates a new Client with 3 workers
+func NewClient() *Client {
+	return NewClientWith(3)
 }
 
-// NewDownloaderWith creates a new Downloader with the amount of workers provided
-func NewDownloaderWith(workers int) *Downloader {
-	dl := &Downloader{
+// NewClientWith creates a new Client with the amount of workers provided
+func NewClientWith(workers int) *Client {
+	dl := &Client{
 		Emitter: emission.NewEmitter(),
 		queue:   newQueue(),
 		jobs:    workers,
@@ -49,11 +49,11 @@ func NewDownloaderWith(workers int) *Downloader {
 }
 
 // Finished returns a channel that will be closed when all workers are idle.
-func (d *Downloader) Finished() <-chan struct{} {
+func (d *Client) Finished() <-chan struct{} {
 	return d.done
 }
 
-func (d *Downloader) work() {
+func (d *Client) work() {
 	for j := range d.queue.get {
 		d.download(j)
 	}
@@ -61,7 +61,7 @@ func (d *Downloader) work() {
 
 // AddURLs adds a list of URLs to the download queue.
 // Returns a WaitGroup for when the downloads are complete.
-func (d *Downloader) AddURLs(urls []*url.URL) *sync.WaitGroup {
+func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
@@ -77,12 +77,12 @@ func (d *Downloader) AddURLs(urls []*url.URL) *sync.WaitGroup {
 }
 
 // DryRun makes this downloader print to stdout instead of downloading.
-func (d *Downloader) DryRun() {
+func (d *Client) DryRun() {
 	d.dryrun = true
 	d.Start()
 }
 
-func (d *Downloader) dryRun(format string, is ...interface{}) bool {
+func (d *Client) dryRun(format string, is ...interface{}) bool {
 	if d.dryrun {
 		fmt.Printf("Would "+format, is...)
 	} else {
@@ -92,8 +92,8 @@ func (d *Downloader) dryRun(format string, is ...interface{}) bool {
 	return d.dryrun
 }
 
-// Start starts the Downloader asynchronously
-func (d *Downloader) Start() {
+// Start starts the Client asynchronously
+func (d *Client) Start() {
 	for _, p := range providers {
 		if cfg, ok := p.(Configured); ok {
 			var am *AccountManager
@@ -111,7 +111,7 @@ func (d *Downloader) Start() {
 type resolveJob func() ([]File, error)
 
 // ResolveSync resolves the URLs. Returns File specs or error that occurred
-func (d *Downloader) ResolveSync(urls []*url.URL) ([]File, error) {
+func (d *Client) ResolveSync(urls []*url.URL) ([]File, error) {
 	return resolveSync(urls)
 }
 
@@ -121,7 +121,7 @@ func (d *Downloader) ResolveSync(urls []*url.URL) ([]File, error) {
 //
 // As such, a `for` instruction that loops `n` times (n being the third return value) and selects
 // from both channels will eventually terminate.
-func (d *Downloader) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
+func (d *Client) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 	return resolve(urls)
 }
 
@@ -200,7 +200,7 @@ func max(ps []Provider, f func(Provider) uint) Provider {
 }
 
 // Download retrieves the given File
-func (d *Downloader) download(j *downloadJob) {
+func (d *Client) download(j *downloadJob) {
 	defer j.wg.Done()
 	retriever := max(providers, func(p Provider) uint {
 		if getter, ok := p.(Retriever); ok {
@@ -213,7 +213,7 @@ func (d *Downloader) download(j *downloadJob) {
 
 	// Reverse iterate -> last provider is the default provider
 	// Basic provider will always do something
-	fetcher := Download(j.file).Via(retriever).To(d.Directory)
+	fetcher := download(j.file).Via(retriever).To(d.Directory)
 	log.Debugf("INIT Getter, path: %s", fetcher.Path())
 	fi, err := os.Stat(fetcher.Path())
 	if err == nil {
@@ -243,21 +243,21 @@ func (d *Downloader) download(j *downloadJob) {
 }
 
 // OnDownload calls the given hook when a new Download is started. The download object is passed.
-func (d *Downloader) OnDownload(f func(*Getter)) {
+func (d *Client) OnDownload(f func(*Download)) {
 	d.On(eDownload, f)
 }
 
 // OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
-func (d *Downloader) OnSkip(f func(*Getter)) {
+func (d *Client) OnSkip(f func(*Download)) {
 	d.On(eSkip, f)
 }
 
 // OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
-func (d *Downloader) OnDeadend(f func(File)) {
+func (d *Client) OnDeadend(f func(File)) {
 	d.On(eDeadend, f)
 }
 
 // OnError calls the given hook when an error occurred in `Download`
-func (d *Downloader) OnError(f func(File, error)) {
+func (d *Client) OnError(f func(File, error)) {
 	d.On(eError, f)
 }

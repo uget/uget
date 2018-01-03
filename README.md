@@ -39,21 +39,21 @@ Downloading a multitude of links:
 ```go
 // First, get your links from somewhere:
 urls := ...
-// Then, create a new Downloader:
-downloader := core.NewDownloader()
+// Then, create a new downloader:
+downloader := core.NewClient()
 // Add those links to the downloader's queue:
 waitGroup := downloader.AddURLs(urls)
 // Register some callbacks:
-downloader.OnDownload(func(getter *core.Getter) {
+downloader.OnDownload(func(download *core.Download) {
 	// Access the File field:
-	// getter.File.Name()
-	// getter.File.URL()
-	// getter.File.Provider()
-	// getter.File.Length()
-	// checksum, algorithmName, hashObject := getter.File.Checksum()
+	// download.File.Name()
+	// download.File.URL()
+	// download.File.Provider()
+	// download.File.Length()
+	// checksum, algorithmName, hashObject := download.File.Checksum()
 
 	// use download for something, e.g. registering another callback:
-	getter.OnDone(func(d time.Duration, err error) {
+	download.OnDone(func(d time.Duration, err error) {
 		if err != nil {
 			// download failed. Handle error.
 			return
