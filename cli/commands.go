@@ -89,9 +89,9 @@ func cmdResolve(args []string, opts *options) int {
 	}
 	var totalLength int64
 	for _, f := range files {
-		if f.Length() != -1 {
-			totalLength += f.Length()
-			length := units.BytesSize(float64(f.Length()))
+		if f.Size() != -1 {
+			totalLength += f.Size()
+			length := units.BytesSize(float64(f.Size()))
 			fmt.Printf("%9s   %s", length, f.URL())
 			sum, algo, _ := f.Checksum()
 			pathSegments := strings.Split(f.URL().RequestURI(), "/")
@@ -160,7 +160,7 @@ func cmdGet(args []string, opts *options) int {
 		}
 		id := con.AddRow(
 			// fmt.Sprintf("%s:", download.File.Name()),
-			fprog(download.File.Name(), 0, float64(download.File.Length()), 0, via),
+			fprog(download.File.Name(), 0, float64(download.File.Size()), 0, via),
 		)
 		download.OnUpdate(func(prog int64) {
 			diff := prog - progress
@@ -168,7 +168,7 @@ func cmdGet(args []string, opts *options) int {
 			// thread unsafe, but we don't care since it's not meant to be precise
 			rootRater.Add(diff)
 			progress = prog
-			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.File.Length()), float64(rater.Rate()), via))
+			con.EditRow(id, fprog(download.File.Name(), float64(prog), float64(download.File.Size()), float64(rater.Rate()), via))
 		})
 		download.OnDone(func(dur time.Duration, err error) {
 			if err != nil {

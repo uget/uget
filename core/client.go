@@ -217,8 +217,8 @@ func (d *Client) download(j *downloadJob) {
 	log.Debugf("INIT Getter, path: %s", fetcher.Path())
 	fi, err := os.Stat(fetcher.Path())
 	if err == nil {
-		log.Debugf("local: %v, remote: %v", fi.Size(), fetcher.File.Length())
-		if d.Skip && fi.Size() == fetcher.File.Length() {
+		log.Debugf("local: %v, remote: %v", fi.Size(), fetcher.File.Size())
+		if d.Skip && fi.Size() == fetcher.File.Size() {
 			log.Debugf("%v already exists... Returning", fetcher.File.Name())
 			d.Emit(eSkip, fetcher)
 			return
