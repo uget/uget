@@ -145,12 +145,13 @@ func cmdGet(args []string, opts *options) int {
 		return s
 	}
 	type info struct {
-		dl    *core.Download
-		row   console.Row
-		rater rate.Rater
-		via   string
-		prog  int64
-		start time.Time
+		dl     *core.Download
+		row    console.Row
+		rater  rate.Rater
+		via    string
+		prog   int64
+		start  time.Time
+		ignore bool
 	}
 
 	dlChan := make(chan *core.Download)
@@ -158,20 +159,22 @@ func cmdGet(args []string, opts *options) int {
 	update := func(rootRater rate.Rater, downloads []*info) {
 		if len(downloads) > 0 {
 			for _, inf := range downloads {
+				if inf.ignore {
+					continue
+				}
 				diff := inf.dl.Progress() - inf.prog
-				if diff != 0 {
-					inf.rater.Add(diff)
-					rootRater.Add(diff)
-					inf.prog = inf.dl.Progress()
-					if inf.dl.Done() {
-						if err := inf.dl.Err(); err != nil {
-							con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), err))
-						} else {
-							con.EditRow(inf.row, fmt.Sprintf("%s: done. Duration: %v", inf.dl.File.Name(), time.Since(inf.start)))
-						}
+				inf.rater.Add(diff)
+				rootRater.Add(diff)
+				inf.prog = inf.dl.Progress()
+				if inf.dl.Done() {
+					inf.ignore = true
+					if err := inf.dl.Err(); err != nil {
+						con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), err))
 					} else {
-						con.EditRow(inf.row, fprog(inf.dl.File.Name(), float64(inf.prog), float64(inf.dl.File.Size()), float64(inf.rater.Rate()), inf.via))
+						con.EditRow(inf.row, fmt.Sprintf("%s: done. Duration: %v", inf.dl.File.Name(), time.Since(inf.start)))
 					}
+				} else {
+					con.EditRow(inf.row, fprog(inf.dl.File.Name(), float64(inf.prog), float64(inf.dl.File.Size()), float64(inf.rater.Rate()), inf.via))
 				}
 			}
 			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
@@ -217,7 +220,7 @@ func cmdGet(args []string, opts *options) int {
 	})
 	downloader.OnError(func(f core.File, err error) {
 		exit = 1
-		con.AddRow(fmt.Sprintf("%v.", err))
+		con.AddRow(fmt.Sprintf("%v: error: %v.", f.Name(), err))
 	})
 	downloader.Start()
 	wg.Wait()

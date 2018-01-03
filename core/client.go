@@ -261,15 +261,23 @@ func (d *Client) download(j *downloadJob) {
 			for k, v := range resp.Header {
 				logrus.Debugf("  < %v: %v", k, v)
 			}
+			// Disallow redirects as well -- we haven't set a redirect handler
+			if !strings.HasPrefix(resp.Status, "2") {
+				logrus.Errorf("Client#download (%v): %v", j.file.Name(), resp.Status)
+				d.Emit(eError, j.file, fmt.Errorf("status code %v", resp.Status))
+				return
+			}
 			reader := &passThru{Reader: resp.Body}
 			openFlags := os.O_WRONLY | os.O_CREATE
 			if resp.StatusCode == http.StatusPartialContent {
 				openFlags |= os.O_APPEND
 				reader.total = fi.Size()
+			} else if resp.StatusCode != http.StatusOK {
+				logrus.Warnf("Client#download (%v): unknown status code %v", j.file.Name(), resp.StatusCode)
 			}
 			f, err := os.OpenFile(path, openFlags, 0644)
 			if err != nil {
-				d.Emit(eError, 0, err)
+				d.Emit(eError, j.file, err)
 				return
 			}
 			defer f.Close()
