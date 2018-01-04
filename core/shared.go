@@ -17,13 +17,3 @@ func (j *jobber) job(f func()) <-chan struct{} {
 	j.jobQueue <- job
 	return job.done
 }
-
-func (j *jobber) workLoop() {
-	for {
-		select {
-		case job := <-j.jobQueue:
-			job.work()
-			close(job.done)
-		}
-	}
-}
