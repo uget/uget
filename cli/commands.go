@@ -171,7 +171,7 @@ func cmdGet(args []string, opts *options) int {
 					if err := inf.dl.Err(); err != nil {
 						con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), err))
 					} else {
-						con.EditRow(inf.row, fmt.Sprintf("%s: done. Duration: %v", inf.dl.File.Name(), time.Since(inf.start)))
+						con.EditRow(inf.row, fmt.Sprintf("%s: done. Duration: %v", inf.dl.File.Name(), prettyTime(time.Since(inf.start))))
 					}
 				} else {
 					con.EditRow(inf.row, fprog(inf.dl.File.Name(), float64(inf.prog), float64(inf.dl.File.Size()), float64(inf.rater.Rate()), inf.via))

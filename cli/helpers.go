@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/core"
@@ -126,4 +128,68 @@ func userSelection(arr []string, prompt string, tries uint8) (int, error) {
 		return 0, fmt.Errorf(invalid)
 	}
 	return i, nil
+}
+
+const (
+	secondsPerMinute = 60
+	secondsPerHour   = 3600
+	secondsPerDay    = 86400
+	secondsPerYear   = 31556952
+)
+
+func prettyTime(d time.Duration) string {
+	if d >= time.Hour*24*365*100 {
+		return "never"
+	}
+	if d < time.Second {
+		return "less than a second"
+	}
+	var buf [16]byte // longest is 99y364d23h59m59s
+	w := len(buf)
+	time := int(d.Seconds())
+	years := time / secondsPerYear
+	time %= secondsPerYear
+	days := time / secondsPerDay
+	time %= secondsPerDay
+	hours := time / secondsPerHour
+	time %= secondsPerHour
+	minutes := time / secondsPerMinute
+	time %= secondsPerMinute
+	seconds := time % secondsPerMinute
+	if seconds != 0 {
+		w--
+		buf[w] = 's'
+		ss := strconv.Itoa(seconds)
+		w -= len(ss)
+		copy(buf[w:], ss)
+	}
+	if minutes != 0 {
+		w--
+		buf[w] = 'm'
+		ms := strconv.Itoa(minutes)
+		w -= len(ms)
+		copy(buf[w:], ms)
+	}
+	if hours != 0 {
+		w--
+		buf[w] = 'h'
+		hs := strconv.Itoa(hours)
+		w -= len(hs)
+		copy(buf[w:], hs)
+	}
+	if days != 0 {
+		w--
+		buf[w] = 'd'
+		daysStr := strconv.Itoa(days)
+		w -= len(daysStr)
+		copy(buf[w:], daysStr)
+	}
+	if years != 0 {
+		w--
+		buf[w] = 'y'
+		ys := strconv.Itoa(years)
+		w -= len(ys)
+		copy(buf[w:], ys)
+	}
+	return string(buf[w:])
 }
