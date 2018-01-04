@@ -38,7 +38,16 @@ func cmdListAccounts(args []string, opt *options) int {
 	if len(args) == 0 {
 		providers = core.RegisteredProviders()
 	} else {
-		providers = []core.Provider{core.RegisteredProviders().GetProvider(args[0])}
+		prov := core.RegisteredProviders().GetProvider(args[0])
+		if prov == nil {
+			fmt.Fprintf(os.Stderr, "No provider named %s\n", args[0])
+			return 1
+		}
+		if _, ok := prov.(core.Accountant); !ok {
+			fmt.Fprintf(os.Stderr, "Provider %v does not support accounts.\n", args[0])
+			return 1
+		}
+		providers = []core.Provider{prov}
 	}
 	for _, p := range providers {
 		pp, ok := p.(core.Accountant)
