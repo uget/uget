@@ -132,9 +132,9 @@ func userSelection(arr []string, prompt string, tries uint8) (int, error) {
 
 const (
 	secondsPerMinute = 60
-	secondsPerHour   = 3600
-	secondsPerDay    = 86400
-	secondsPerYear   = 31556952
+	secondsPerHour   = secondsPerMinute * 60
+	secondsPerDay    = secondsPerHour * 24
+	secondsPerYear   = secondsPerDay * 365
 )
 
 func prettyTime(d time.Duration) string {
