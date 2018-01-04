@@ -20,7 +20,6 @@ type Client struct {
 	*emission.Emitter
 	queue      *queue
 	jobs       int
-	done       chan struct{}
 	dryrun     bool
 	client     *http.Client
 	Directory  string
@@ -46,15 +45,9 @@ func NewClientWith(workers int) *Client {
 		Emitter: emission.NewEmitter(),
 		queue:   newQueue(),
 		jobs:    workers,
-		done:    make(chan struct{}, 1),
 		client:  &http.Client{},
 	}
 	return dl
-}
-
-// Finished returns a channel that will be closed when all workers are idle.
-func (d *Client) Finished() <-chan struct{} {
-	return d.done
 }
 
 func (d *Client) work() {
