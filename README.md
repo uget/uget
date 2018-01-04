@@ -30,7 +30,7 @@ Check out the supported providers at the [other repository](https://github.com/u
 It's simple! Install Go, setup your `$GOPATH` and run:  
 `go install github.com/uget/uget`
 
-## 2.2 Code examples
+## 2.2 Library usage
 
 It's best to check out the [cli code](cli/commands.go) for examples.
 
@@ -46,24 +46,50 @@ waitGroup := downloader.AddURLs(urls)
 // Register some callbacks:
 downloader.OnDownload(func(download *core.Download) {
 	// Access the File field:
-	// download.File.Name()
-	// download.File.URL()
-	// download.File.Provider()
-	// download.File.Length()
-	// checksum, algorithmName, hashObject := download.File.Checksum()
+	download.File.Name()
+	download.File.URL()
+	download.File.Length()
 
-	// use download for something, e.g. registering another callback:
-	download.OnDone(func(d time.Duration, err error) {
-		if err != nil {
-			// download failed. Handle error.
+	// hashObject is a hash.Hash used for generating a checksum
+	checksum, algorithmName, hashObject := download.File.Checksum()
+
+	// the provider, e.g. basic / imgur.com / uploaded.net / oboom.com etc.
+	// see a list of all providers at https://github.com/uget/providers
+	download.File.Provider()
+
+	// wait for download to finish:
+	download.Wait()
+	// and get the error if there was one:
+	download.Err()
+
+	// OR: print download status every second
+
+	interval := 1*time.Second
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	fmt.Printf("%s: started\n", download.File.Name())
+	for {
+		select {
+		case <-ticker.C:
+			percentage := download.Progress() / download.File.Size()
+			fmt.Printf("  %s: %.2f%% of %d\n", download.File.Name(), percentage, download.File.Size())
+		case <-download.Waiter():
+			if download.Err() != nil {
+				fmt.Printf("  %s: ERROR! %v\n", download.File.Name(), download.Err())
+			} else {
+				fmt.Printf("  %s: DONE!\n", download.File.Name())
+			}
 			return
 		}
-		// Download finished.
-	})
+	}
 })
-// Start downloader (synchronously, blocking).
+// Start client (in the background)
 downloader.Start()
+
+// Wait for the jobs provided earlier to finish
 waitGroup.Wait()
+
 // No downloads left, all jobs done.
 ```
 
