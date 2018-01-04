@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 )
 
 // Prompter asks for user input
@@ -118,37 +119,45 @@ func TryTemplate(p Provider) Account {
 	return nil
 }
 
-var providers = []Provider{}
+// Providers represents an array of providers with some utility functions
+type Providers []Provider
+
+var globalProviders = Providers{}
 
 // RegisterProvider is not thread-safe!!!!
 func RegisterProvider(p Provider) error {
-	duplicate := GetProvider(p.Name())
+	duplicate := globalProviders.GetProvider(p.Name())
 	if duplicate != nil {
 		return errors.New("Duplicate " + p.Name() + "!")
 	}
-	providers = append(providers, p)
+	globalProviders = append(globalProviders, p)
 	return nil
 }
 
-// AllProviders returns a list of registered providers
-func AllProviders() []Provider {
-	l := len(providers)
-	return append(make([]Provider, 0, l), providers...)
+// RegisteredProviders returns a list of registered providers
+func RegisteredProviders() Providers {
+	l := len(globalProviders)
+	ps := make([]Provider, l)
+	for i, p := range globalProviders {
+		p2v := reflect.New(reflect.Indirect(reflect.ValueOf(p)).Type())
+		ps[i] = p2v.Interface().(Provider)
+	}
+	return ps
 }
 
 // GetProvider returns the provider for the given string, or `nil` if there was none.
-func GetProvider(name string) Provider {
-	return FindProvider(func(p Provider) bool {
+func (ps Providers) GetProvider(name string) Provider {
+	return ps.FindProvider(func(p Provider) bool {
 		return p.Name() == name
 	})
 }
 
 // FindProvider searches providers (in reverse order).
 // Returns the first to satisfy the predicate
-func FindProvider(f func(Provider) bool) Provider {
-	l := len(providers)
-	for i := range providers {
-		p := providers[l-1-i]
+func (ps Providers) FindProvider(f func(Provider) bool) Provider {
+	l := len(ps)
+	for i := range ps {
+		p := ps[l-1-i]
 		if f(p) {
 			return p
 		}

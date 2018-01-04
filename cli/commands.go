@@ -36,9 +36,9 @@ func cmdAddAccount(args []string, opt *options) int {
 func cmdListAccounts(args []string, opt *options) int {
 	var providers []core.Provider
 	if len(args) == 0 {
-		providers = core.AllProviders()
+		providers = core.RegisteredProviders()
 	} else {
-		providers = []core.Provider{core.GetProvider(args[0])}
+		providers = []core.Provider{core.RegisteredProviders().GetProvider(args[0])}
 	}
 	for _, p := range providers {
 		pp, ok := p.(core.Accountant)

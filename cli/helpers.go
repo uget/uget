@@ -70,7 +70,7 @@ func grabURLs(args []string, opts *urlArgs) []*url.URL {
 func selectPProvider(arg string) core.Provider {
 	if arg == "" {
 		ps := make([]string, 0)
-		for _, p := range core.AllProviders() {
+		for _, p := range core.RegisteredProviders() {
 			if pp, ok := p.(core.Accountant); ok {
 				ps = append(ps, pp.Name())
 			}
@@ -82,7 +82,7 @@ func selectPProvider(arg string) core.Provider {
 		}
 		arg = ps[i]
 	}
-	provider := core.GetProvider(arg)
+	provider := core.RegisteredProviders().GetProvider(arg)
 	if provider == nil {
 		fmt.Printf("Error: no provider named %s.\n", arg)
 	}

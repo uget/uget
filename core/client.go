@@ -18,13 +18,14 @@ import (
 // Client manages downloads
 type Client struct {
 	*emission.Emitter
-	queue      *queue
-	jobs       int
-	dryrun     bool
-	client     *http.Client
 	Directory  string
 	Skip       bool
 	NoContinue bool
+	Providers  Providers
+	httpClient *http.Client
+	queue      *queue
+	jobs       int
+	dryrun     bool
 }
 
 const (
@@ -42,10 +43,11 @@ func NewClient() *Client {
 // NewClientWith creates a new Client with the amount of workers provided
 func NewClientWith(workers int) *Client {
 	dl := &Client{
-		Emitter: emission.NewEmitter(),
-		queue:   newQueue(),
-		jobs:    workers,
-		client:  &http.Client{},
+		Emitter:    emission.NewEmitter(),
+		Providers:  RegisteredProviders(),
+		queue:      newQueue(),
+		jobs:       workers,
+		httpClient: &http.Client{},
 	}
 	return dl
 }
@@ -63,7 +65,7 @@ func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fs, err := resolveSync(urls)
+		fs, err := d.resolveSync(urls)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error while resolving: %v\n", err)
 			return
@@ -92,7 +94,7 @@ func (d *Client) dryRun(format string, is ...interface{}) bool {
 // Start starts the Client asynchronously
 func (d *Client) Start() {
 	logrus.Debugf("Client#Start: %v workers", d.jobs)
-	for _, p := range providers {
+	for _, p := range d.Providers {
 		if cfg, ok := p.(Configured); ok {
 			var am *AccountManager
 			if acct, ok := p.(Accountant); ok {
@@ -110,7 +112,7 @@ type resolveJob func() ([]File, error)
 
 // ResolveSync resolves the URLs. Returns File specs or error that occurred
 func (d *Client) ResolveSync(urls []*url.URL) ([]File, error) {
-	return resolveSync(urls)
+	return d.resolveSync(urls)
 }
 
 // Resolve asynchronously resolves the URLs. Returns file channel, error channel and worker count
@@ -120,12 +122,12 @@ func (d *Client) ResolveSync(urls []*url.URL) ([]File, error) {
 // As such, a `for` instruction that loops `n` times (n being the third return value) and selects
 // from both channels will eventually terminate.
 func (d *Client) Resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
-	return resolve(urls)
+	return d.resolve(urls)
 }
 
-func resolveSync(urls []*url.URL) ([]File, error) {
+func (d *Client) resolveSync(urls []*url.URL) ([]File, error) {
 	fs := make([]File, 0, len(urls))
-	fchan, echan, len := resolve(urls)
+	fchan, echan, len := d.resolve(urls)
 	for i := 0; i < len; i++ {
 		select {
 		case files := <-fchan:
@@ -138,11 +140,11 @@ func resolveSync(urls []*url.URL) ([]File, error) {
 	return fs, nil
 }
 
-func resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
+func (d *Client) resolve(urls []*url.URL) (<-chan []File, <-chan error, int) {
 	logrus.Debugf("Client#resolve: %v URLs", len(urls))
 	byProvider := make(map[resolver][]*url.URL)
 	for _, u := range urls {
-		resolver := FindProvider(func(p Provider) bool {
+		resolver := d.Providers.FindProvider(func(p Provider) bool {
 			if r, ok := p.(resolver); ok {
 				return r.CanResolve(u)
 			}
@@ -204,7 +206,7 @@ func max(ps []Provider, f func(Provider) uint) Provider {
 // Download retrieves the given File
 func (d *Client) download(j *downloadJob) {
 	defer j.wg.Done()
-	retriever := max(providers, func(p Provider) uint {
+	retriever := max(d.Providers, func(p Provider) uint {
 		if getter, ok := p.(Retriever); ok {
 			prio := getter.CanRetrieve(j.file)
 			logrus.Debugf("Client#download (%v): provider %v with prio %v", j.file.Name(), p.Name(), prio)
@@ -243,7 +245,7 @@ func (d *Client) download(j *downloadJob) {
 			for k, v := range headers {
 				req.Header.Set(k, v)
 			}
-			resp, err := d.client.Do(req)
+			resp, err := d.httpClient.Do(req)
 			if err != nil {
 				go d.EmitSync(eError, j.file, err)
 				return

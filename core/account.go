@@ -41,7 +41,7 @@ func (a *account) UnmarshalJSON(bs []byte) error {
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
 	}
-	data := GetProvider(j.Provider).(Accountant).NewTemplate()
+	data := globalProviders.GetProvider(j.Provider).(Accountant).NewTemplate()
 	json.Unmarshal(*j.Data, data)
 	a.Provider = j.Provider
 	a.Selected = j.Selected
