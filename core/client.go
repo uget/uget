@@ -221,13 +221,13 @@ func (d *Client) download(j *downloadJob) {
 		if fi.Size() == j.file.Size() {
 			if d.Skip {
 				logrus.Debugf("Client#download (%v): already exists... returning", j.file.Name())
-				d.Emit(eSkip, j.file)
+				go d.EmitSync(eSkip, j.file)
 				return
 			}
 			logrus.Debugf("Client#download (%v): already exists... deleting", j.file.Name())
 			err = os.Remove(path)
 			if err != nil {
-				d.Emit(eError, j.file, err)
+				go d.EmitSync(eError, j.file, err)
 				return
 			}
 		} else if !d.NoContinue {
@@ -235,7 +235,7 @@ func (d *Client) download(j *downloadJob) {
 			logrus.Infof("Client#download (%v): +header range %s", j.file.Name(), headers["Range"])
 		}
 	} else if !os.IsNotExist(err) {
-		d.Emit(eError, 0, err)
+		go d.EmitSync(eError, 0, err)
 		return
 	}
 	if !d.dryRun("fetch %s with %s provider.", j.file.Name(), retriever.Name()) {
@@ -245,7 +245,7 @@ func (d *Client) download(j *downloadJob) {
 			}
 			resp, err := d.client.Do(req)
 			if err != nil {
-				d.Emit(eError, j.file, err)
+				go d.EmitSync(eError, j.file, err)
 				return
 			}
 			defer resp.Body.Close()
@@ -257,7 +257,7 @@ func (d *Client) download(j *downloadJob) {
 			// Disallow redirects as well -- we haven't set a redirect handler
 			if !strings.HasPrefix(resp.Status, "2") {
 				logrus.Errorf("Client#download (%v): %v", j.file.Name(), resp.Status)
-				d.Emit(eError, j.file, fmt.Errorf("status code %v", resp.Status))
+				go d.EmitSync(eError, j.file, fmt.Errorf("status code %v", resp.Status))
 				return
 			}
 			reader := &passThru{Reader: resp.Body}
@@ -270,15 +270,15 @@ func (d *Client) download(j *downloadJob) {
 			}
 			f, err := os.OpenFile(path, openFlags, 0644)
 			if err != nil {
-				d.Emit(eError, j.file, err)
+				go d.EmitSync(eError, j.file, err)
 				return
 			}
 			defer f.Close()
 			getter := download(j.file, reader).to(f).via(retriever)
-			d.Emit(eDownload, getter)
+			go d.EmitSync(eDownload, getter)
 			getter.start()
 		} else {
-			d.Emit(eError, j.file, err)
+			go d.EmitSync(eError, j.file, err)
 		}
 	}
 	logrus.Debugf("Client#download (%v): EXIT", j.file.Name())
