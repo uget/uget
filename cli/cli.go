@@ -114,7 +114,7 @@ func command(args []string, f func([]string, *options) int) error {
 // RunApp sets up parser and runs app with passed arguments. Returns exit code.
 func RunApp(arguments []string) int {
 	logrus.Infof("==== uget %v - %v ====", core.Version, time.Now().Local().Format("15:04:05"))
-	logrus.Infof("==== running with args %s", core.Version, strings.Join(arguments, " "))
+	logrus.Infof("==== running with args %s", core.Version, strings.Join(arguments[1:], " "))
 	opts := &options{
 		Unknowns: map[string]string{},
 	}

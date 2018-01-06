@@ -1,26 +1,22 @@
 package core
 
-import (
-	"sync"
-	// pq "github.com/oleiade/lane"
-)
+// pq "github.com/oleiade/lane"
 
-type downloadJob struct {
-	file File
-	wg   *sync.WaitGroup
+type clientJob interface {
+	Do()
 }
 
 type queue struct {
 	jobber
-	buffer []*downloadJob
-	get    chan *downloadJob
+	buffer []clientJob
+	get    chan clientJob
 }
 
 func newQueue() *queue {
 	q := &queue{
 		jobber{make(chan *asyncJob)},
-		make([]*downloadJob, 0, 10),
-		make(chan *downloadJob),
+		make([]clientJob, 0, 10),
+		make(chan clientJob),
 	}
 	go q.dispatch()
 	return q
@@ -48,24 +44,13 @@ func (q *queue) has() bool {
 	return len(q.buffer) > 0
 }
 
-func (q *queue) enqueue(fs []File, wg *sync.WaitGroup) {
-	wg.Add(1)
+func (q *queue) enqueue(cj clientJob) {
 	q.job(func() {
-		defer wg.Done()
-		if len(fs) > cap(q.buffer)-len(q.buffer) {
-			buf := q.buffer
-			q.buffer = make([]*downloadJob, 0, len(buf)+len(fs)+10)
-			copy(q.buffer, buf)
-		}
-		for _, f := range fs {
-			wg.Add(1)
-			downloadJob := &downloadJob{f, wg}
-			q.buffer = append(q.buffer, downloadJob)
-		}
+		q.buffer = append(q.buffer, cj)
 	})
 }
 
-func (q *queue) dequeue() *downloadJob {
+func (q *queue) dequeue() clientJob {
 	defer func() { q.buffer = q.buffer[1:] }()
 	return q.buffer[0]
 }

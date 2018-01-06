@@ -91,13 +91,14 @@ func cmdResolve(args []string, opts *options) int {
 	}
 	urls := grabURLs(args, opts.Resolve.urlArgs)
 	client := core.NewClient()
-	files, err := client.ResolveSync(urls)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving: %v\n", err.Error())
-		return 1
-	}
+	results := client.ResolveSync(urls)
 	var totalLength int64
-	for _, f := range files {
+	for _, result := range results {
+		if result.Err != nil {
+			fmt.Printf("Error: %v\n", result.Err)
+			continue
+		}
+		f := result.Data
 		if f.Size() != -1 {
 			totalLength += f.Size()
 			length := units.BytesSize(float64(f.Size()))
@@ -137,7 +138,7 @@ func cmdGet(args []string, opts *options) int {
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}
-	downloader := core.NewClientWith(opts.Get.Jobs)
+	downloader := core.NewClientWith(opts.Get.Jobs, 3)
 	downloader.Skip = !opts.Get.NoSkip
 	downloader.NoContinue = opts.Get.NoContinue
 	wg := downloader.AddURLs(urls)
