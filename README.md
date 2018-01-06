@@ -1,6 +1,8 @@
 UGET (Universal GET)
 ====================
 
+[![Travis Build Status](https://travis-ci.org/uget/uget.svg?branch=master)](https://travis-ci.org/uget/uget)
+
 # Table of contents
 
 1. Introduction
