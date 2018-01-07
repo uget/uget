@@ -1,4 +1,4 @@
-UGET (Universal GET)
+uget (universal get)
 ====================
 
 [![Travis Build Status](https://travis-ci.org/uget/uget.svg?branch=master)](https://travis-ci.org/uget/uget)
@@ -39,6 +39,8 @@ It's best to check out the [cli code](cli/commands.go) for examples.
 Downloading a multitude of links:
 
 ```go
+import "github.com/uget/uget/core"
+
 // First, get your links from somewhere:
 urls := ...
 // Then, create a new downloader:
