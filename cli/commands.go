@@ -85,11 +85,10 @@ func cmdSelectAccounts(args []string, opt *options) int {
 }
 
 func cmdResolve(args []string, opts *options) int {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "No arguments provided")
+	urls := grabURLs(args, opts.Resolve.urlArgs)
+	if urls == nil {
 		return 1
 	}
-	urls := grabURLs(args, opts.Resolve.urlArgs)
 	client := core.NewClient()
 	results := client.ResolveSync(urls)
 	var totalLength int64
@@ -130,11 +129,10 @@ func cmdVersion(args []string, opts *options) int {
 }
 
 func cmdGet(args []string, opts *options) int {
-	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "No arguments provided")
+	urls := grabURLs(args, opts.Get.urlArgs)
+	if urls == nil {
 		return 1
 	}
-	urls := grabURLs(args, opts.Get.urlArgs)
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}

@@ -9,18 +9,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mattn/go-isatty"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/core"
 )
 
-func urlsFromFile(urls *[]*url.URL, f string) error {
+func urlsFromFilename(urls *[]*url.URL, f string) error {
 	file, err := os.Open(f)
 	if err != nil {
 		logrus.Errorf("helpers.urlsFromFile: could not open %v", f)
 		return err
 	}
 	defer file.Close()
+	return urlsFromFile(urls, file)
+}
 
+func urlsFromFile(urls *[]*url.URL, file *os.File) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		u, err := url.Parse(scanner.Text())
@@ -55,14 +60,29 @@ func grabURLs(args []string, opts *urlArgs) []*url.URL {
 			urls = append(urls, u)
 		}
 	} else {
-		urls = make([]*url.URL, 0, 256)
+		if len(args) == 0 {
+			args = []string{"-"}
+		}
+		urls = make([]*url.URL, 0, 64)
 		for _, file := range args {
-			err := urlsFromFile(&urls, file)
+			var err error
+			if file == "-" {
+				if isatty.IsTerminal(os.Stdin.Fd()) {
+					fmt.Println("Enter your links:")
+				}
+				err = urlsFromFile(&urls, os.Stdin)
+			} else {
+				err = urlsFromFilename(&urls, file)
+			}
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error reading links: %v\n", err)
 				return nil
 			}
 		}
+	}
+	if len(urls) == 0 {
+		fmt.Fprintln(os.Stderr, "No URLs provided")
+		return nil
 	}
 	return urls
 }
