@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/uget/uget/api"
 	"github.com/uget/uget/core"
+	api "github.com/uget/uget/server"
 	"github.com/uget/uget/utils/console"
 	"github.com/uget/uget/utils/rate"
 	"github.com/uget/uget/utils/units"

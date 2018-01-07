@@ -13,13 +13,6 @@ import (
 	"github.com/uget/uget/utils"
 )
 
-// Account represents a persistent record on a provider (useful e.g. to access restricted files)
-type Account interface {
-	// Returns a unique identifier for this account.
-	// This will often be the username or e-mail.
-	ID() string
-}
-
 func defaultFile() string {
 	return path.Join(utils.ConfigPath(), "accounts.json")
 }

@@ -1,4 +1,4 @@
-package api
+package server
 
 import (
 	"encoding/json"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/Unknwon/macaron"
-	"github.com/uget/cnlv2"
 	"github.com/uget/uget/core"
 )
 
@@ -44,12 +43,7 @@ func (s *Server) Run() {
 		})
 	})
 	// CLICK'N'LOAD v2
-	m.Group("", func() {
-		m.Post("/flash/addcrypted2", cnlv2.HttpAction(addLinks, nil))
-		m.Get("/flash", wrap("UGET"))
-		m.Get("/jdcheck.js", as("text/javascript"), wrap("jdownloader = true;"))
-		m.Get("/crossdomain.xml", as("text/html"), wrap(cnlv2.CrossDomain))
-	})
+	cnl(m)
 	s.StartedAt = time.Now().Round(time.Minute)
 	m.Run(s.BindAddr, int(s.Port))
 }
