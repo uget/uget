@@ -1,4 +1,4 @@
-package api
+package core
 
 import (
 	"hash"
@@ -51,14 +51,9 @@ type Provider interface {
 	Name() string
 }
 
-type AccountManager interface {
-	SelectedAccount() (Account, bool)
-	Accounts() []Account
-}
-
 // Config object
 type Config struct {
-	AccountManager AccountManager
+	Accounts []Account
 }
 
 // Configured are providers that require some kind of configuration/initialization

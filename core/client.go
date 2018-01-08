@@ -78,7 +78,7 @@ func (d *Client) Start() {
 			if acct, ok := p.(Accountant); ok {
 				am = AccountManagerFor("", acct)
 			}
-			cfg.Configure(&Config{am})
+			cfg.Configure(&Config{am.Accounts()})
 		}
 	}
 	for i := 0; i < d.resolvers; i++ {
