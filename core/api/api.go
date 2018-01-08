@@ -6,6 +6,13 @@ import (
 	"net/url"
 )
 
+// FileSizeOffline (returned by File#Size) denotes a file is offline
+const FileSizeOffline = -1
+
+// FileSizeUnknown (returned by File#Size) denotes a file's size is unknown
+// e.g. HEAD request without Content-Length
+const FileSizeUnknown = -2
+
 // Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account interface {
 	// Returns a unique identifier for this account.

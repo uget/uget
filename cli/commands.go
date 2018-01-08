@@ -98,7 +98,11 @@ func cmdResolve(args []string, opts *options) int {
 			continue
 		}
 		f := result.Data
-		if f.Size() != -1 {
+		if f.Size() == core.FileSizeOffline {
+			fmt.Printf("offline     %s\n", f.URL())
+		} else if f.Size() == core.FileSizeUnknown {
+			fmt.Printf("???????     %s\n", f.URL())
+		} else {
 			totalLength += f.Size()
 			length := units.BytesSize(float64(f.Size()))
 			fmt.Printf("%9s   %s", length, f.URL())
@@ -115,8 +119,6 @@ func cmdResolve(args []string, opts *options) int {
 				}
 			}
 			fmt.Println()
-		} else {
-			fmt.Printf("offline     %s\n", f.URL())
 		}
 	}
 	fmt.Println(units.BytesSize(float64(totalLength)))

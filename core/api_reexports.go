@@ -6,6 +6,9 @@ import (
 	"github.com/uget/uget/core/api"
 )
 
+const FileSizeUnknown = api.FileSizeUnknown
+const FileSizeOffline = api.FileSizeOffline
+
 // Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account = api.Account
 
