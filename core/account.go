@@ -17,15 +17,15 @@ func defaultFile() string {
 	return path.Join(utils.ConfigPath(), "accounts.json")
 }
 
-type account struct {
-	Selected bool        `json:"selected,omitempty"`
-	Provider string      `json:"provider"`
-	Data     interface{} `json:"data"`
+type accinfo struct {
+	Selected bool    `json:"selected,omitempty"`
+	Provider string  `json:"provider"`
+	Data     Account `json:"data"`
 }
-type accstore map[string]*account
+type accstore map[string]*accinfo
 type root map[string]accstore
 
-func (a *account) UnmarshalJSON(bs []byte) error {
+func (a *accinfo) UnmarshalJSON(bs []byte) error {
 	var j struct {
 		Provider string
 		Selected bool
@@ -34,11 +34,11 @@ func (a *account) UnmarshalJSON(bs []byte) error {
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
 	}
-	data := globalProviders.GetProvider(j.Provider).(Accountant).NewTemplate()
-	json.Unmarshal(*j.Data, data)
+	account := globalProviders.GetProvider(j.Provider).(Accountant).NewTemplate()
+	json.Unmarshal(*j.Data, account)
 	a.Provider = j.Provider
 	a.Selected = j.Selected
-	a.Data = data
+	a.Data = account
 	return nil
 }
 
@@ -79,28 +79,23 @@ func managerFor(file string) *internalAccMgr {
 	return managers[file]
 }
 
-// Accounts requires parameter of type `*[]interface{}` or panics
-func (m *AccountManager) Accounts(store interface{}) {
+func (m *AccountManager) Accounts() []Account {
+	var accs []Account
 	<-m.job(func() {
-		m.accounts(store)
+		accs = m.accounts()
 	})
+	return accs
 }
 
-func (m *AccountManager) accounts(store interface{}) {
-	arr := reflect.Indirect(reflect.ValueOf(store))
-	if arr.Kind() != reflect.Slice {
-		panic("Must provide a slice")
+func (m *AccountManager) accounts() []Account {
+	accMap := m.root[m.Provider.Name()]
+	accounts := make([]Account, 0, len(accMap))
+	for _, v := range accMap {
+		acc := m.Provider.NewTemplate()
+		icopy(acc, v.Data)
+		accounts = append(accounts, acc)
 	}
-	isStrSlice := arr.Type().String() == "[]string"
-	for id, v := range m.root[m.Provider.Name()] {
-		var data interface{}
-		if isStrSlice {
-			data = id
-		} else {
-			data = v.Data
-		}
-		arr.Set(reflect.Append(arr, reflect.Indirect(reflect.ValueOf(data))))
-	}
+	return accounts
 }
 
 // SelectAccount sets a local account as selected
@@ -160,7 +155,7 @@ func (m *AccountManager) AddAccount(account Account) {
 }
 
 func (m *AccountManager) addAccount(acc Account) {
-	m.p()[acc.ID()] = &account{Provider: m.Provider.Name(), Data: acc}
+	m.p()[acc.ID()] = &accinfo{Provider: m.Provider.Name(), Data: acc}
 }
 
 func (m *AccountManager) p() accstore {

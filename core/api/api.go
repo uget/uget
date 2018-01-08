@@ -53,7 +53,7 @@ type Provider interface {
 
 type AccountManager interface {
 	SelectedAccount() (Account, bool)
-	Accounts(store interface{})
+	Accounts() []Account
 }
 
 // Config object

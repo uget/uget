@@ -52,8 +52,7 @@ func cmdListAccounts(args []string, opt *options) int {
 	for _, p := range providers {
 		pp, ok := p.(core.Accountant)
 		if ok {
-			var accs []interface{}
-			core.AccountManagerFor("", pp).Accounts(&accs)
+			accs := core.AccountManagerFor("", pp).Accounts()
 			fmt.Printf("%s:\n", p.Name())
 			for _, acc := range accs {
 				fmt.Printf("    %v\n", acc)
@@ -73,8 +72,11 @@ func cmdSelectAccounts(args []string, opt *options) int {
 		return 1
 	}
 	mgr := core.AccountManagerFor("", provider.(core.Accountant))
-	ids := []string{}
-	mgr.Accounts(&ids)
+	accounts := mgr.Accounts()
+	ids := make([]string, len(accounts))
+	for i, acc := range accounts {
+		ids[i] = acc.ID()
+	}
 	i, err := userSelection(ids, "Select an account", 2)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
