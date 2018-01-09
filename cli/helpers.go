@@ -110,6 +110,9 @@ func selectPProvider(arg string) core.Provider {
 }
 
 func userSelection(arr []string, prompt string, tries uint8) (int, error) {
+	if len(arr) == 0 {
+		return 0, fmt.Errorf("no applicable values found")
+	}
 	for i, x := range arr {
 		fmt.Printf("- %s (%v)\n", x, i+1)
 	}
