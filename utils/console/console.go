@@ -68,8 +68,9 @@ func (c *Console) addRow(text string) Row {
 	return id
 }
 
-// EditRow replaces the given row with the given string
-func (c *Console) EditRow(id Row, text string) {
+// EditRow replaces the given row with the given string (asynchronously).
+// Returns a channel that will be closed upon completion.
+func (c *Console) EditRow(id Row, text string) <-chan struct{} {
 	ch := make(chan struct{})
 	c.jobs <- func() {
 		diff := c.rowCount - int(id)
@@ -79,11 +80,12 @@ func (c *Console) EditRow(id Row, text string) {
 		fmt.Fprintf(c.File, "%c[%dB", 27, diff)
 		close(ch)
 	}
-	<-ch
+	return ch
 }
 
-// Summary places a text at the very bottom
-func (c *Console) Summary(text string) {
+// Summary places a text at the very bottom (asynchronously)
+// Returns a channel that will be closed upon completion.
+func (c *Console) Summary(text string) <-chan struct{} {
 	ch := make(chan struct{})
 	c.jobs <- func() {
 		c.summary = text
@@ -91,5 +93,5 @@ func (c *Console) Summary(text string) {
 		fmt.Fprintf(c.File, "%s\r", text)
 		close(ch)
 	}
-	<-ch
+	return ch
 }
