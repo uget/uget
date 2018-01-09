@@ -52,17 +52,21 @@ func cmdListAccounts(args []string, opt *options) int {
 	for _, p := range providers {
 		pp, ok := p.(core.Accountant)
 		if ok {
-			accs := core.AccountManagerFor("", pp).Accounts()
+			accs := core.AccountManagerFor("", pp).Metadata()
 			fmt.Printf("%s:\n", p.Name())
 			for _, acc := range accs {
-				fmt.Printf("    %v\n", acc)
+				fmt.Printf("    %v", acc.Data)
+				if acc.Disabled {
+					fmt.Printf(" (disabled)")
+				}
+				fmt.Println()
 			}
 		}
 	}
 	return 0
 }
 
-func cmdSelectAccounts(args []string, opt *options) int {
+func cmdDisableAccount(args []string, opt *options) int {
 	var arg string
 	if len(args) != 0 {
 		arg = args[0]
@@ -82,7 +86,33 @@ func cmdSelectAccounts(args []string, opt *options) int {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
-	mgr.SelectAccount(ids[i])
+	mgr.DisableAccount(ids[i])
+	return 0
+}
+
+func cmdEnableAccount(args []string, opt *options) int {
+	var arg string
+	if len(args) != 0 {
+		arg = args[0]
+	}
+	provider := selectPProvider(arg)
+	if provider == nil {
+		return 1
+	}
+	mgr := core.AccountManagerFor("", provider.(core.Accountant))
+	accounts := mgr.Metadata()
+	ids := make([]string, 0, len(accounts))
+	for _, acc := range accounts {
+		if acc.Disabled {
+			ids = append(ids, acc.Data.ID())
+		}
+	}
+	i, err := userSelection(ids, "Select an account", 2)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	mgr.EnableAccount(ids[i])
 	return 0
 }
 

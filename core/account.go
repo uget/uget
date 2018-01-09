@@ -18,7 +18,7 @@ func defaultFile() string {
 }
 
 type accinfo struct {
-	Selected bool    `json:"selected,omitempty"`
+	Disabled bool    `json:"disabled,omitempty"`
 	Provider string  `json:"provider"`
 	Data     Account `json:"data"`
 }
@@ -28,7 +28,7 @@ type root map[string]accstore
 func (a *accinfo) UnmarshalJSON(bs []byte) error {
 	var j struct {
 		Provider string
-		Selected bool
+		Disabled bool
 		Data     *json.RawMessage
 	}
 	if err := json.Unmarshal(bs, &j); err != nil {
@@ -37,7 +37,7 @@ func (a *accinfo) UnmarshalJSON(bs []byte) error {
 	account := globalProviders.GetProvider(j.Provider).(Accountant).NewTemplate()
 	json.Unmarshal(*j.Data, account)
 	a.Provider = j.Provider
-	a.Selected = j.Selected
+	a.Disabled = j.Disabled
 	a.Data = account
 	return nil
 }
@@ -71,12 +71,30 @@ func managerFor(file string) *internalAccMgr {
 	if managers[file] == nil {
 		if err := os.MkdirAll(path.Dir(file), 0755); err != nil {
 			logrus.Errorf("core.managerFor: could not create parent dirs of %s", file)
+			return nil
 		}
 		m := &internalAccMgr{jobber{make(chan *asyncJob)}, file, nil}
 		managers[file] = m
 		go m.dispatch()
 	}
 	return managers[file]
+}
+
+func (m *AccountManager) Metadata() []*accinfo {
+	var accs []*accinfo
+	<-m.job(func() {
+		accs = m.metadata()
+	})
+	return accs
+}
+
+func (m *AccountManager) metadata() []*accinfo {
+	accMap := m.root[m.Provider.Name()]
+	accounts := make([]*accinfo, 0, len(accMap))
+	for _, v := range accMap {
+		accounts = append(accounts, v)
+	}
+	return accounts
 }
 
 func (m *AccountManager) Accounts() []Account {
@@ -91,60 +109,51 @@ func (m *AccountManager) accounts() []Account {
 	accMap := m.root[m.Provider.Name()]
 	accounts := make([]Account, 0, len(accMap))
 	for _, v := range accMap {
-		acc := m.Provider.NewTemplate()
-		icopy(acc, v.Data)
-		accounts = append(accounts, acc)
+		if !v.Disabled {
+			acc := m.Provider.NewTemplate()
+			icopy(acc, v.Data)
+			accounts = append(accounts, acc)
+		}
 	}
 	return accounts
 }
 
-// SelectAccount sets a local account as selected
-func (m *AccountManager) SelectAccount(id string) bool {
+// DisableAccount disables an account from being used
+func (m *AccountManager) DisableAccount(id string) bool {
 	var found bool
 	<-m.job(func() {
-		found = m.selectAccount(id)
+		found = m.disableAccount(id)
 	})
 	return found
 }
 
-func (m *AccountManager) selectAccount(id string) bool {
-	found := false
+func (m *AccountManager) disableAccount(id string) bool {
 	for k, v := range m.p() {
-		v.Selected = false
 		if id == k {
-			v.Selected = true
-			found = true
+			v.Disabled = true
+			return true
 		}
 	}
+	return false
+}
+
+// EnableAccount enables an account
+func (m *AccountManager) EnableAccount(id string) bool {
+	var found bool
+	<-m.job(func() {
+		found = m.enableAccount(id)
+	})
 	return found
 }
 
-// SelectedAccount returns the selected account (or the first if no selected exists)
-// The returned bool indicates whether there was a selected account.
-func (m *AccountManager) SelectedAccount() (Account, bool) {
-	store := m.Provider.NewTemplate()
-	var found, selected bool
-	<-m.job(func() {
-		found, selected = m.selectedAccount(store)
-	})
-	if !found {
-		return nil, false
-	}
-	return store, selected
-}
-
-func (m *AccountManager) selectedAccount(store Account) (bool, bool) {
-	none := true
-	for _, v := range m.p() {
-		if v.Selected {
-			icopy(store, v.Data)
-			return true, true
-		} else if none {
-			icopy(store, v.Data)
-			none = false
+func (m *AccountManager) enableAccount(id string) bool {
+	for k, v := range m.p() {
+		if id == k {
+			v.Disabled = false
+			return true
 		}
 	}
-	return !none, false
+	return false
 }
 
 // AddAccount adds a record to the accounts file

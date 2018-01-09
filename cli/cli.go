@@ -52,13 +52,15 @@ type daemon struct{}
 type push struct{}
 
 type accounts struct {
-	Add    accountsAdd    `command:"add"`
-	List   accountsList   `command:"list"`
-	Select accountsSelect `command:"select"`
+	Add     accountsAdd     `command:"add"`
+	List    accountsList    `command:"list"`
+	Disable accountsDisable `command:"disable"`
+	Enable  accountsEnable  `command:"enable"`
 }
 type accountsAdd struct{}
 type accountsList struct{}
-type accountsSelect struct{}
+type accountsDisable struct{}
+type accountsEnable struct{}
 
 /* Commands */
 
@@ -74,8 +76,12 @@ func (cmd *accountsList) Execute(args []string) error {
 	return command(args, cmdListAccounts)
 }
 
-func (cmd *accountsSelect) Execute(args []string) error {
-	return command(args, cmdSelectAccounts)
+func (cmd *accountsDisable) Execute(args []string) error {
+	return command(args, cmdDisableAccount)
+}
+
+func (cmd *accountsEnable) Execute(args []string) error {
+	return command(args, cmdEnableAccount)
 }
 
 func (cmd *get) Execute(args []string) error {
