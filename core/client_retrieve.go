@@ -19,6 +19,10 @@ type retrieveJob struct {
 	f  File
 }
 
+func (r *retrieveJob) Identifier() string {
+	return fmt.Sprintf("RETRIEVE(%s)", r.f.Name())
+}
+
 func (r *retrieveJob) Do() {
 	defer r.wg.Done()
 	r.c.download(r.f)

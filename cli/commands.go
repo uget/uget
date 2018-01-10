@@ -262,10 +262,6 @@ func cmdGet(args []string, opts *options) int {
 	downloader.OnSkip(func(file core.File) {
 		con.AddRow(fmt.Sprintf("%s: skipped...", file.Name()))
 	})
-	downloader.OnDeadend(func(f core.File) {
-		exit = 1
-		con.AddRow(fmt.Sprintf("%v: Reached deadend.", f.URL()))
-	})
 	downloader.OnError(func(f core.File, err error) {
 		exit = 1
 		con.AddRow(fmt.Sprintf("%v: error: %v.", f.Name(), err))

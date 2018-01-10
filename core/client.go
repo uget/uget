@@ -14,9 +14,8 @@ import (
 
 const (
 	eDownload = iota
-	eDeadend
 	eError
-	eResolveError
+	eResolve
 	eSkip
 )
 
@@ -129,17 +128,13 @@ func (d *Client) OnSkip(f func(File)) {
 	d.On(eSkip, f)
 }
 
-// OnDeadend calls the given hook when a Deadend instruction was returned by the provider.
-func (d *Client) OnDeadend(f func(File)) {
-	d.On(eDeadend, f)
-}
-
 // OnError calls the given hook when an error occurred in `Download`
 func (d *Client) OnError(f func(File, error)) {
 	d.On(eError, f)
 }
 
-// OnResolveError calls the given hook when an error occurred during `Resolve`
-func (d *Client) OnResolveError(f func(*url.URL, error)) {
-	d.On(eResolveError, f)
+// OnResolve calls the given hook when a resolve job is finished.
+// It passes the original URLs, the File if successful or the error if not.
+func (d *Client) OnResolve(f func(*url.URL, File, error)) {
+	d.On(eResolve, f)
 }
