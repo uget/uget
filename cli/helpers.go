@@ -12,6 +12,7 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/uget/uget/app"
 	"github.com/uget/uget/core"
 )
 
@@ -215,4 +216,30 @@ func prettyTime(d time.Duration) string {
 		copy(buf[w:], ys)
 	}
 	return string(buf[w:])
+}
+
+// tryAddAccount asks for user input and stores the account in accounts file and returns `true` --
+// if provider implements `Accountant` interface. Otherwise, simply `false` is returned
+func tryAddAccount(p core.Provider, pr core.Prompter) error {
+	acct, ok := p.(core.Accountant)
+	if ok {
+		if acc, err := acct.NewAccount(pr); err == nil {
+			app.AccountManagerFor("", acct).AddAccount(acc)
+		} else {
+			return err
+		}
+	} else {
+		return fmt.Errorf("provider is not support accounts")
+	}
+	return nil
+}
+
+func useAccounts(d *core.Client) {
+	for _, provider := range core.RegisteredProviders() {
+		if ac, ok := provider.(core.Accountant); ok {
+			for _, acc := range app.AccountManagerFor("", ac).Accounts() {
+				d.Use(acc)
+			}
+		}
+	}
 }

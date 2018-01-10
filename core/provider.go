@@ -2,25 +2,8 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 )
-
-// TryAddAccount asks for user input and stores the account in accounts file and returns `true` --
-// if provider implements `Accountant` interface. Otherwise, simply `false` is returned
-func TryAddAccount(p Provider, pr Prompter) error {
-	acct, ok := p.(Accountant)
-	if ok {
-		if acc, err := acct.NewAccount(pr); err == nil {
-			AccountManagerFor("", acct).AddAccount(acc)
-		} else {
-			return err
-		}
-	} else {
-		return fmt.Errorf("provider is not support accounts")
-	}
-	return nil
-}
 
 // TryTemplate creates a new account template for the given provider and returns that --
 // if provider implements `Accountant` interface. Otherwise, simply `nil` is returned

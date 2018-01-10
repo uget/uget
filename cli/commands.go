@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/uget/uget/app"
 	"github.com/uget/uget/core"
 	api "github.com/uget/uget/server"
 	"github.com/uget/uget/utils/console"
@@ -25,7 +26,7 @@ func cmdAddAccount(args []string, opt *options) int {
 		return 1
 	}
 	prompter := newCliPrompter(provider.Name(), opt.Unknowns)
-	if err := core.TryAddAccount(provider, prompter); err != nil {
+	if err := tryAddAccount(provider, prompter); err != nil {
 		prompter.Error(err.Error())
 		return 1
 	}
@@ -52,7 +53,7 @@ func cmdListAccounts(args []string, opt *options) int {
 	for _, p := range providers {
 		pp, ok := p.(core.Accountant)
 		if ok {
-			accs := core.AccountManagerFor("", pp).Metadata()
+			accs := app.AccountManagerFor("", pp).Metadata()
 			fmt.Printf("%s:\n", p.Name())
 			for _, acc := range accs {
 				fmt.Printf("    %v", acc.Data)
@@ -75,7 +76,7 @@ func cmdDisableAccount(args []string, opt *options) int {
 	if provider == nil {
 		return 1
 	}
-	mgr := core.AccountManagerFor("", provider.(core.Accountant))
+	mgr := app.AccountManagerFor("", provider.(core.Accountant))
 	accounts := mgr.Accounts()
 	ids := make([]string, len(accounts))
 	for i, acc := range accounts {
@@ -99,7 +100,7 @@ func cmdEnableAccount(args []string, opt *options) int {
 	if provider == nil {
 		return 1
 	}
-	mgr := core.AccountManagerFor("", provider.(core.Accountant))
+	mgr := app.AccountManagerFor("", provider.(core.Accountant))
 	accounts := mgr.Metadata()
 	ids := make([]string, 0, len(accounts))
 	for _, acc := range accounts {
@@ -122,6 +123,7 @@ func cmdResolve(args []string, opts *options) int {
 		return 1
 	}
 	client := core.NewClient()
+	useAccounts(client)
 	results := client.ResolveSync(urls)
 	var totalLength int64
 	for _, result := range results {
@@ -171,6 +173,7 @@ func cmdGet(args []string, opts *options) int {
 		opts.Get.Jobs = 1
 	}
 	downloader := core.NewClientWith(opts.Get.Jobs, 3)
+	useAccounts(downloader)
 	downloader.Skip = !opts.Get.NoSkip
 	downloader.NoContinue = opts.Get.NoContinue
 	wg := downloader.AddURLs(urls)

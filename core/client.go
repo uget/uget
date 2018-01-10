@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -26,6 +27,7 @@ type Client struct {
 	Skip           bool
 	NoContinue     bool
 	Providers      Providers
+	Accounts       map[string][]Account
 	httpClient     *http.Client
 	resolverQueue  *queue
 	resolvers      int // number of resolver jobs
@@ -49,6 +51,7 @@ func NewClientWith(retrievers, resolvers int) *Client {
 		retrieverQueue: newQueue(),
 		retrievers:     retrievers,
 		httpClient:     &http.Client{},
+		Accounts:       make(map[string][]Account),
 	}
 }
 
@@ -69,24 +72,35 @@ func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	return wg
 }
 
+func (d *Client) configure() {
+	for _, p := range d.Providers {
+		if cfg, ok := p.(Configured); ok {
+			cfg.Configure(&Config{d.Accounts[p.Name()]})
+		}
+	}
+}
+
 // Start starts the Client asynchronously
 func (d *Client) Start() {
 	logrus.Debugf("Client#Start: %v workers", d.retrievers)
-	for _, p := range d.Providers {
-		if cfg, ok := p.(Configured); ok {
-			var am *AccountManager
-			if acct, ok := p.(Accountant); ok {
-				am = AccountManagerFor("", acct)
-			}
-			cfg.Configure(&Config{am.Accounts()})
-		}
-	}
+	d.configure()
 	for i := 0; i < d.resolvers; i++ {
 		go d.workResolve()
 	}
 	for i := 0; i < d.retrievers; i++ {
 		go d.workRetrieve()
 	}
+}
+
+func (d *Client) Use(acc Account) {
+	pkg := reflect.ValueOf(acc).Elem().Type().PkgPath()
+	prov := d.Providers.FindProvider(func(p Provider) bool {
+		return reflect.ValueOf(p).Elem().Type().PkgPath() == pkg
+	})
+	if prov == nil {
+		panic(fmt.Sprintf("No provider with package path %v in this client", pkg))
+	}
+	d.Accounts[prov.Name()] = append(d.Accounts[prov.Name()], acc)
 }
 
 // DryRun starts this downloader in dryrun mode, printing to stdout instead of downloading.
@@ -97,7 +111,7 @@ func (d *Client) DryRun() {
 
 func (d *Client) dryRun(format string, is ...interface{}) bool {
 	if d.dryrun {
-		fmt.Printf("Would "+format, is...)
+		fmt.Printf("Would "+format+"\n", is...)
 	} else {
 		capitalized := strings.ToUpper(string(format[0])) + format[1:]
 		logrus.Infof(capitalized, is...)

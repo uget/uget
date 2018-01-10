@@ -21,6 +21,7 @@ func (d *Client) ResolveSync(urls []*url.URL) []ResolveResult {
 // Returns ResolveResult channel which will be closed upon completion.
 func (d *Client) Resolve(urls []*url.URL) <-chan ResolveResult {
 	logrus.Debugf("Client#Resolve: %v URLs", len(urls))
+	d.configure()
 	rchan := make(chan ResolveResult)
 	units := d.group(urls)
 	wg := new(sync.WaitGroup)

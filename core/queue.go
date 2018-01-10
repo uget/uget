@@ -1,20 +1,22 @@
 package core
 
-// pq "github.com/oleiade/lane"
+import (
+	"github.com/uget/uget/utils"
+)
 
 type clientJob interface {
 	Do()
 }
 
 type queue struct {
-	jobber
+	*utils.Jobber
 	buffer []clientJob
 	get    chan clientJob
 }
 
 func newQueue() *queue {
 	q := &queue{
-		jobber{make(chan *asyncJob)},
+		utils.NewJobber(),
 		make([]clientJob, 0, 10),
 		make(chan clientJob),
 	}
@@ -28,14 +30,14 @@ func (q *queue) dispatch() {
 			select {
 			case q.get <- q.buffer[0]:
 				q.dequeue()
-			case job := <-q.jobQueue:
-				job.work()
-				close(job.done)
+			case job := <-q.JobQueue:
+				job.Work()
+				close(job.Done)
 			}
 		} else {
-			job := <-q.jobQueue
-			job.work()
-			close(job.done)
+			job := <-q.JobQueue
+			job.Work()
+			close(job.Done)
 		}
 	}
 }
@@ -45,7 +47,7 @@ func (q *queue) has() bool {
 }
 
 func (q *queue) enqueue(cj clientJob) {
-	q.job(func() {
+	q.Job(func() {
 		q.buffer = append(q.buffer, cj)
 	})
 }

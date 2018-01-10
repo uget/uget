@@ -1,4 +1,4 @@
-package core
+package app
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/howeyc/fsnotify"
+	"github.com/uget/uget/core"
 	"github.com/uget/uget/utils"
 )
 
@@ -18,9 +19,9 @@ func defaultFile() string {
 }
 
 type accinfo struct {
-	Disabled bool    `json:"disabled,omitempty"`
-	Provider string  `json:"provider"`
-	Data     Account `json:"data"`
+	Disabled bool         `json:"disabled,omitempty"`
+	Provider string       `json:"provider"`
+	Data     core.Account `json:"data"`
 }
 type accstore map[string]*accinfo
 type root map[string]accstore
@@ -34,7 +35,7 @@ func (a *accinfo) UnmarshalJSON(bs []byte) error {
 	if err := json.Unmarshal(bs, &j); err != nil {
 		return err
 	}
-	account := globalProviders.GetProvider(j.Provider).(Accountant).NewTemplate()
+	account := core.RegisteredProviders().GetProvider(j.Provider).(core.Accountant).NewTemplate()
 	json.Unmarshal(*j.Data, account)
 	a.Provider = j.Provider
 	a.Disabled = j.Disabled
@@ -43,7 +44,7 @@ func (a *accinfo) UnmarshalJSON(bs []byte) error {
 }
 
 type internalAccMgr struct {
-	jobber
+	*utils.Jobber
 	file string
 	root root
 }
@@ -51,14 +52,14 @@ type internalAccMgr struct {
 // AccountManager manages provider accounts and keeps the accounts file and local memory in sync
 type AccountManager struct {
 	*internalAccMgr
-	Provider Accountant
+	Provider core.Accountant
 }
 
 var mtx = sync.Mutex{}
 var managers = map[string]*internalAccMgr{}
 
 // AccountManagerFor returns an AccountManager for the given file and provider. File can be empty.
-func AccountManagerFor(file string, p Accountant) *AccountManager {
+func AccountManagerFor(file string, p core.Accountant) *AccountManager {
 	if file == "" {
 		file = defaultFile()
 	}
@@ -73,7 +74,7 @@ func managerFor(file string) *internalAccMgr {
 			logrus.Errorf("core.managerFor: could not create parent dirs of %s", file)
 			return nil
 		}
-		m := &internalAccMgr{jobber{make(chan *asyncJob)}, file, nil}
+		m := &internalAccMgr{utils.NewJobber(), file, nil}
 		managers[file] = m
 		go m.dispatch()
 	}
@@ -82,7 +83,7 @@ func managerFor(file string) *internalAccMgr {
 
 func (m *AccountManager) Metadata() []*accinfo {
 	var accs []*accinfo
-	<-m.job(func() {
+	<-m.Job(func() {
 		accs = m.metadata()
 	})
 	return accs
@@ -97,17 +98,17 @@ func (m *AccountManager) metadata() []*accinfo {
 	return accounts
 }
 
-func (m *AccountManager) Accounts() []Account {
-	var accs []Account
-	<-m.job(func() {
+func (m *AccountManager) Accounts() []core.Account {
+	var accs []core.Account
+	<-m.Job(func() {
 		accs = m.accounts()
 	})
 	return accs
 }
 
-func (m *AccountManager) accounts() []Account {
+func (m *AccountManager) accounts() []core.Account {
 	accMap := m.root[m.Provider.Name()]
-	accounts := make([]Account, 0, len(accMap))
+	accounts := make([]core.Account, 0, len(accMap))
 	for _, v := range accMap {
 		if !v.Disabled {
 			acc := m.Provider.NewTemplate()
@@ -121,7 +122,7 @@ func (m *AccountManager) accounts() []Account {
 // DisableAccount disables an account from being used
 func (m *AccountManager) DisableAccount(id string) bool {
 	var found bool
-	<-m.job(func() {
+	<-m.Job(func() {
 		found = m.disableAccount(id)
 	})
 	return found
@@ -140,7 +141,7 @@ func (m *AccountManager) disableAccount(id string) bool {
 // EnableAccount enables an account
 func (m *AccountManager) EnableAccount(id string) bool {
 	var found bool
-	<-m.job(func() {
+	<-m.Job(func() {
 		found = m.enableAccount(id)
 	})
 	return found
@@ -157,13 +158,13 @@ func (m *AccountManager) enableAccount(id string) bool {
 }
 
 // AddAccount adds a record to the accounts file
-func (m *AccountManager) AddAccount(account Account) {
-	<-m.job(func() {
+func (m *AccountManager) AddAccount(account core.Account) {
+	<-m.Job(func() {
 		m.addAccount(account)
 	})
 }
 
-func (m *AccountManager) addAccount(acc Account) {
+func (m *AccountManager) addAccount(acc core.Account) {
 	m.p()[acc.ID()] = &accinfo{Provider: m.Provider.Name(), Data: acc}
 }
 
@@ -240,8 +241,8 @@ func (m *internalAccMgr) dispatch() {
 			}
 		case err := <-watcher.Error:
 			logrus.Errorf("internalAccMgr#reload: error watching %s: %v", m.file, err)
-		case job := <-m.jobQueue:
-			job.work()
+		case job := <-m.JobQueue:
+			job.Work()
 			if err := m.save(); err != nil {
 				logrus.Errorf("internalAccMgr#reload: error saving %v", m.file)
 			} else {
@@ -249,7 +250,7 @@ func (m *internalAccMgr) dispatch() {
 			}
 			// this is after m.save() because of race conditions that occur if main thread exits.
 			// TODO: fix the race condition and move this up.
-			job.done <- struct{}{}
+			job.Done <- struct{}{}
 		}
 	}
 }
