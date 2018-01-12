@@ -6,58 +6,45 @@ import (
 	"github.com/uget/uget/utils"
 )
 
-type clientJob interface {
-	Do()
-	Identifier() string
+type Queue interface {
+	Dequeue() <-chan File
+	List() []File
 }
+
+var _ Queue = new(queue)
 
 type queue struct {
 	*utils.Jobber
 	*pQueue
-	get chan clientJob
+	get       chan File
+	getAll    chan []*request
+	finalized bool
 }
 
-func newQueue() *queue {
-	pq := make(pQueue, 0, 31)
-	q := &queue{
-		utils.NewJobber(),
-		&pq,
-		make(chan clientJob),
-	}
-	go q.dispatch()
-	return q
+func (q *queue) Dequeue() <-chan File {
+	return q.get
 }
 
-func (q *queue) enqueue(cj clientJob) <-chan struct{} {
-	return q.Job(func() {
-		item := &pItem{
-			value:    cj,
-			priority: 1,
-		}
-		heap.Push(q, item)
-	})
-}
-
-func (q *queue) list() []clientJob {
+func (q *queue) List() []File {
 	var pq pQueue
 	<-q.Job(func() {
 		pq = make(pQueue, q.Len())
 		copy(pq, *q.pQueue)
 	})
-	cjs := make([]clientJob, pq.Len())
+	cjs := make([]File, pq.Len())
 	i := 0
 	for pq.Len() > 0 {
-		cjs[i] = heap.Pop(&pq).(*pItem).value
+		cjs[i] = heap.Pop(&pq).(*request).file
 		i++
 	}
 	return cjs
 }
 
-func (q *queue) set(cj clientJob, prio int) <-chan struct{} {
-	return q.Job(func() {
+func (q *queue) Set(f File, prio float64) {
+	q.Job(func() {
 		for index, item := range *q.pQueue {
-			if item.value == cj {
-				item.priority = prio
+			if item.file == f {
+				item.prio = float64(prio)
 				heap.Fix(q, index)
 				break
 			}
@@ -66,11 +53,11 @@ func (q *queue) set(cj clientJob, prio int) <-chan struct{} {
 }
 
 // returns whether the remove was sucessful
-func (q *queue) remove(cj clientJob) <-chan bool {
+func (q *queue) remove(req *request) <-chan bool {
 	b := make(chan bool, 1)
 	q.Job(func() {
 		for index, item := range *q.pQueue {
-			if item.value == cj {
+			if item == req {
 				heap.Remove(q, index)
 				b <- true
 				return
@@ -81,18 +68,63 @@ func (q *queue) remove(cj clientJob) <-chan bool {
 	return b
 }
 
+func newQueue() *queue {
+	pq := make(pQueue, 0, 31)
+	get := make(chan File)
+	getAll := make(chan []*request)
+	q := &queue{
+		utils.NewJobber(),
+		&pq,
+		get,
+		getAll,
+		false,
+	}
+	go q.dispatch()
+	return q
+}
+
+// Finalize stops this queue gracefully,
+// making it close all channels once emptied.
+func (q *queue) Finalize() <-chan struct{} {
+	return q.Job(func() {
+		q.finalized = true
+	})
+}
+
+func (q *queue) enqueue(req *request) <-chan struct{} {
+	return q.Job(func() {
+		heap.Push(q, req)
+	})
+}
+
+func (q *queue) enqueueAll(reqs []*request) <-chan struct{} {
+	return q.Job(func() {
+		for _, req := range reqs {
+			heap.Push(q, req)
+		}
+	})
+}
+
 // == private methods, not to be used from outside ==
 
 func (q *queue) dispatch() {
 	for {
 		if q.Len() > 0 {
 			select {
-			case q.get <- q.peek():
+			case q.getAll <- *q.pQueue:
+				pq := make(pQueue, 0)
+				q.pQueue = &pq
+			case q.get <- q.peek().file:
+				// fmt.Printf("q#pop, prio %v, url %v\n", q.peek().prio, q.peek().u)
 				heap.Pop(q)
 			case job := <-q.JobQueue:
 				job.Work()
 				close(job.Done)
 			}
+		} else if q.finalized {
+			close(q.get)
+			close(q.getAll)
+			return
 		} else {
 			job := <-q.JobQueue
 			job.Work()
@@ -101,19 +133,14 @@ func (q *queue) dispatch() {
 	}
 }
 
-type pItem struct {
-	value    clientJob
-	priority int
-}
-
-type pQueue []*pItem
+type pQueue []*request
 
 func (pq pQueue) Len() int {
 	return len(pq)
 }
 
 func (pq pQueue) Less(i, j int) bool {
-	return pq[i].priority > pq[j].priority
+	return pq[i].precedes(pq[j])
 }
 
 func (pq pQueue) Swap(i, j int) {
@@ -121,20 +148,14 @@ func (pq pQueue) Swap(i, j int) {
 }
 
 func (pq *pQueue) Push(x interface{}) {
-	n := len(*pq)
-	item := x.(*pItem)
-	item.priority = -n
-	*pq = append(*pq, item)
+	*pq = append(*pq, x.(*request))
 }
 
 func (pq *pQueue) Pop() interface{} {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	*pq = old[0 : n-1]
-	return item
+	*pq = (*pq)[0 : len(*pq)-1]
+	return nil
 }
 
-func (pq pQueue) peek() clientJob {
-	return pq[0].value
+func (pq pQueue) peek() *request {
+	return pq[0]
 }

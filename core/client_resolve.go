@@ -1,139 +1,93 @@
 package core
 
 import (
-	"bytes"
-	"net/url"
-	"sync"
-
-	"github.com/Sirupsen/logrus"
+	"github.com/uget/uget/core/api"
 )
 
-// ResolveSync resolves the URLs. Returns File specs or error that occurred.
-func (d *Client) ResolveSync(urls []*url.URL) []ResolveResult {
-	rs := make([]ResolveResult, 0, len(urls))
-	rchan := d.Resolve(urls)
-	for r := range rchan {
-		rs = append(rs, r)
+func (d *Client) workResolve() {
+	for jobs := range d.resolverQueue.getAll {
+		d.resolve(jobs)
 	}
-	return rs
 }
 
-// Resolve asynchronously resolves the URLs.
-// Returns ResolveResult channel which will be closed upon completion.
-func (d *Client) Resolve(urls []*url.URL) <-chan ResolveResult {
-	logrus.Debugf("Client#Resolve: %v URLs", len(urls))
-	d.configure()
-	rchan := make(chan ResolveResult)
-	units := d.group(urls)
-	wg := new(sync.WaitGroup)
-	wg.Add(len(units))
+func (d *Client) resolve(jobs []*request) {
+	units := d.units(jobs)
 	for _, unit := range units {
 		go func(unit resolveUnit) {
-			defer wg.Done()
-			for _, r := range unit.do() {
-				rchan <- r
+			requests, err := unit()
+			for _, req := range requests {
+				request := req.(*request)
+				if err != nil {
+					go d.EmitSync(eResolve, req.URL, nil, err)
+					request.done()
+					return
+				}
+				if request.resolved() {
+					if request.file.Offline() || d.retrievers == 0 {
+						request.done()
+					} else {
+						go d.EmitSync(eResolve, request.u, request.file, nil)
+					}
+					d.ResolvedQueue.enqueue(request)
+				} else {
+					d.resolverQueue.enqueue(request)
+				}
 			}
 		}(unit)
 	}
-	go func() {
-		wg.Wait()
-		close(rchan)
-	}()
-	return rchan
 }
 
-// ResolveResult is sent through channels from the Resolve action
-type ResolveResult struct {
-	Data File
-	Err  error
-}
+type resolveUnit func() ([]api.Request, error)
 
-type resolveUnit struct {
-	urls []*url.URL
-	do   func() []ResolveResult
-}
-
-type resolveJob struct {
-	c       *Client
-	wg      *sync.WaitGroup
-	resolve resolveUnit
-}
-
-func (r *resolveJob) Identifier() string {
-	s := bytes.NewBufferString("RESOLVE(")
-	for _, u := range r.resolve.urls {
-		s.WriteString(u.String())
-	}
-	s.WriteString(")")
-	return s.String()
-}
-
-func (r *resolveJob) Do() {
-	defer r.wg.Done()
-	results := r.resolve.do()
-	jobCount := 0
-	for i, res := range results {
-		if res.Err != nil {
-			logrus.Warnf("Resolve fail: %v", res.Err)
-		} else {
-			jobCount++
-			logrus.Debugf("Resolve success. Enqueueuing %v", res.Data.Name())
-			r.c.retrieverQueue.enqueue(&retrieveJob{r.c, r.wg, res.Data})
-		}
-		go r.c.EmitSync(eResolve, r.resolve.urls[i], res.Data, res.Err)
-	}
-	r.wg.Add(jobCount)
-}
-
-func (d *Client) workResolve() {
-	for j := range d.resolverQueue.get {
-		j.Do()
-	}
-}
-
-func (d *Client) group(urls []*url.URL) []resolveUnit {
-	jobs := make([]resolveUnit, 0, len(urls))
-	byProvider := make(map[string][]*url.URL)
-	for _, u := range urls {
-		resolver := d.Providers.FindProvider(func(p Provider) bool {
-			if r, ok := p.(resolver); ok {
-				return r.CanResolve(u)
+// returns: units, retrievable (resolved)
+func (d *Client) units(requests []*request) []resolveUnit {
+	single, multi := d.group(requests)
+	fns := make([]resolveUnit, 0, len(single)+len(multi))
+	for req, resolver := range single {
+		request := req
+		fns = append(fns, func() ([]api.Request, error) {
+			reqs, err := resolver.ResolveOne(request)
+			if reqs == nil {
+				reqs = []api.Request{request}
 			}
-			return false
+			return reqs, err
 		})
-		if mr, ok := resolver.(MultiResolver); ok {
-			byProvider[mr.Name()] = append(byProvider[mr.Name()], u)
-		} else {
-			sr := resolver.(SingleResolver)
-			singleURL := u
-			singleJob := resolveUnit{
-				do: func() []ResolveResult {
-					f, err := sr.Resolve(singleURL)
-					return []ResolveResult{ResolveResult{f, err}}
-				},
-				urls: []*url.URL{singleURL},
+	}
+	for resolver, reqs := range multi {
+		rs := reqs
+		fns = append(fns, func() ([]api.Request, error) {
+			reqs, err := resolver.ResolveMany(reqs)
+			if reqs == nil {
+				reqs = rs
 			}
-			jobs = append(jobs, singleJob)
+			return reqs, err
+		})
+	}
+	return fns
+}
+
+// returns: (SingleResolvable, MultiResolvable, Retrievable)
+func (d *Client) group(rs []*request) (map[*request]SingleResolver, map[MultiResolver][]api.Request) {
+	single := make(map[*request]SingleResolver)
+	multi := make(map[MultiResolver][]api.Request)
+	for _, r := range rs {
+		if r.resolved() {
+			panic("Resolved in Client#group: " + r.URL().String())
+		}
+	Loop:
+		for _, p := range d.Providers {
+			if resolver, ok := p.(resolver); ok {
+				switch resolver.CanResolve(r.URL()) {
+				case api.Single:
+					single[r] = resolver.(SingleResolver)
+					break Loop
+				case api.Multi:
+					mr := resolver.(MultiResolver)
+					multi[mr] = append(multi[mr], r)
+					break Loop
+				}
+			}
 		}
 	}
-	for p, urls := range byProvider {
-		mr := d.Providers.GetProvider(p).(MultiResolver)
-		us := urls
-		job := resolveUnit{
-			do: func() []ResolveResult {
-				fs, err := mr.Resolve(us)
-				if err != nil {
-					return []ResolveResult{ResolveResult{nil, err}}
-				}
-				rs := make([]ResolveResult, len(fs))
-				for i, f := range fs {
-					rs[i] = ResolveResult{f, err}
-				}
-				return rs
-			},
-			urls: us,
-		}
-		jobs = append(jobs, job)
-	}
-	return jobs
+	return single, multi
 }

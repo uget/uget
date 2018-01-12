@@ -124,30 +124,28 @@ func cmdResolve(args []string, opts *options) int {
 	}
 	client := core.NewClient()
 	useAccounts(client)
-	results := client.ResolveSync(urls)
+	wg := client.AddURLs(urls)
+	client.Resolve()
+	wg.Wait()
+	client.Finalize()
 	var totalLength int64
-	for _, result := range results {
-		if result.Err != nil {
-			fmt.Printf("Error: %v\n", result.Err)
-			continue
-		}
-		f := result.Data
-		if f.Size() == core.FileSizeOffline {
-			fmt.Printf("offline     %s\n", f.URL())
-		} else if f.Size() == core.FileSizeUnknown {
-			fmt.Printf("???????     %s\n", f.URL())
+	for file := range client.ResolvedQueue.Dequeue() {
+		if file.Offline() {
+			fmt.Printf("offline     %s\n", file.URL())
+		} else if file.LengthUnknown() {
+			fmt.Printf("???????     %s\n", file.URL())
 		} else {
-			totalLength += f.Size()
-			length := units.BytesSize(float64(f.Size()))
-			fmt.Printf("%9s   %s", length, f.URL())
-			sum, algo, _ := f.Checksum()
-			pathSegments := strings.Split(f.URL().RequestURI(), "/")
-			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != f.Name()
+			totalLength += file.Size()
+			length := units.BytesSize(float64(file.Size()))
+			fmt.Printf("%9s   %s", length, file.URL())
+			sum, algo, _ := file.Checksum()
+			pathSegments := strings.Split(file.URL().RequestURI(), "/")
+			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != file.Name()
 			if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
 				if sum == "" {
-					fmt.Printf(" (%s)", f.Name())
+					fmt.Printf(" (%s)", file.Name())
 				} else if uriDiffersFromFile {
-					fmt.Printf(" (%s, %s: %s)", f.Name(), algo, sum)
+					fmt.Printf(" (%s, %s: %s)", file.Name(), algo, sum)
 				} else {
 					fmt.Printf(" (%s: %s)", algo, sum)
 				}
@@ -172,7 +170,7 @@ func cmdGet(args []string, opts *options) int {
 	if opts.Get.Jobs < 1 {
 		opts.Get.Jobs = 1
 	}
-	downloader := core.NewClientWith(opts.Get.Jobs, 3)
+	downloader := core.NewClientWith(opts.Get.Jobs)
 	useAccounts(downloader)
 	downloader.Skip = !opts.Get.NoSkip
 	downloader.NoContinue = opts.Get.NoContinue

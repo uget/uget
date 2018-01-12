@@ -7,30 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
 )
 
-type retrieveJob struct {
-	c  *Client
-	wg *sync.WaitGroup
-	f  File
-}
-
-func (r *retrieveJob) Identifier() string {
-	return fmt.Sprintf("RETRIEVE(%s)", r.f.Name())
-}
-
-func (r *retrieveJob) Do() {
-	defer r.wg.Done()
-	r.c.download(r.f)
-}
-
 func (d *Client) workRetrieve() {
-	for j := range d.retrieverQueue.get {
-		j.Do()
+	for file := range d.ResolvedQueue.get {
+		if file.Offline() {
+			go d.EmitSync(eDeadend, file.URL())
+		} else {
+			d.download(file)
+			file.done()
+		}
 	}
 }
 

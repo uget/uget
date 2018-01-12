@@ -6,12 +6,9 @@ import (
 	"net/url"
 )
 
-// FileSizeOffline (returned by File#Size) denotes a file is offline
-const FileSizeOffline = -1
-
 // FileSizeUnknown (returned by File#Size) denotes a file's size is unknown
 // e.g. HEAD request without Content-Length
-const FileSizeUnknown = -2
+const FileSizeUnknown = -1
 
 // Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account interface {
@@ -64,27 +61,61 @@ type Configured interface {
 	Configure(*Config)
 }
 
+type Request interface {
+	Root() Request
+	URL() *url.URL
+
+	// Wrap is a helper for SingleResolvers. Wraps this Request in a singleton slice.
+	Wrap() []Request
+
+	// Generating methods
+
+	// ResolvesTo
+	ResolvesTo(File) Request
+	Deadend() Request
+	Yields(*url.URL) Request
+	Bundles([]*url.URL) []Request
+}
+
+// Resolvability enum.
+// one of:
+//     - Next (means skip this provider)
+//     - Single (means cannot be combined with other URLs)
+//     - other values mean that those with the same value can be combined.
+type Resolvability int
+
+const (
+	// Next - this provider cannot handle this Request
+	Next Resolvability = iota
+	// Single - this provider can resolve this Request only on its own
+	Single
+	// Multi - this provider can resolve this Request with others that yield this same value
+	Multi
+)
+
 // not DRY -- we really don't want to export this in either package.
 type resolver interface {
 	Provider
 
 	// Determines whether this provider can read meta information
 	// for the provided URL.
-	CanResolve(*url.URL) bool
+	CanResolve(*url.URL) Resolvability
 }
 
 // MultiResolver is a provider which can resolve multiple URLs at once
 type MultiResolver interface {
 	resolver
 
-	Resolve([]*url.URL) ([]File, error)
+	// first return value mustn't be nil!
+	ResolveMany([]Request) ([]Request, error)
 }
 
 // SingleResolver is a provider which can only resolve URLs one by one
 type SingleResolver interface {
 	resolver
 
-	Resolve(*url.URL) (File, error)
+	// first return value mustn't be nil!
+	ResolveOne(Request) ([]Request, error)
 }
 
 // Retriever is a provider which can download specific URLs

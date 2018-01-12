@@ -6,14 +6,8 @@ import (
 	"github.com/uget/uget/core/api"
 )
 
-const FileSizeOffline = api.FileSizeOffline
-const FileSizeUnknown = api.FileSizeUnknown
-
 // Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account = api.Account
-
-// File denotes a remote file object
-type File = api.File
 
 // Prompter asks for user input
 type Prompter = api.Prompter
@@ -36,7 +30,7 @@ type resolver interface {
 
 	// Determines whether this provider can read meta information
 	// for the provided URL.
-	CanResolve(*url.URL) bool
+	CanResolve(*url.URL) api.Resolvability
 }
 
 // MultiResolver is a provider which can resolve multiple URLs at once

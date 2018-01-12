@@ -16,41 +16,41 @@ const (
 	eDownload = iota
 	eError
 	eResolve
+	eDeadend
 	eSkip
 )
 
 // Client manages downloads
 type Client struct {
 	*emission.Emitter
-	Directory      string
-	Skip           bool
-	NoContinue     bool
-	Providers      Providers
-	Accounts       map[string][]Account
-	httpClient     *http.Client
-	resolverQueue  *queue
-	resolvers      int // number of resolver jobs
-	retrieverQueue *queue
-	retrievers     int // number of retriever/downloader jobs
-	dryrun         bool
+	Directory     string
+	Skip          bool
+	NoContinue    bool
+	Providers     Providers
+	Accounts      map[string][]Account
+	httpClient    *http.Client
+	resolverQueue *queue
+	ResolvedQueue *queue
+	retrievers    int // number of retriever/downloader jobs
+	dryrun        bool
 }
 
 // NewClient creates a new Client with 3 retrievers and 1 resolver
 func NewClient() *Client {
-	return NewClientWith(3, 1)
+	return NewClientWith(3)
 }
 
 // NewClientWith creates a new Client with the amount of workers provided.
-func NewClientWith(retrievers, resolvers int) *Client {
+// If amount is 0, the Client works in resolve-only mode.
+func NewClientWith(retrievers int) *Client {
 	return &Client{
-		Emitter:        emission.NewEmitter(),
-		Providers:      RegisteredProviders(),
-		resolverQueue:  newQueue(),
-		resolvers:      resolvers,
-		retrieverQueue: newQueue(),
-		retrievers:     retrievers,
-		httpClient:     &http.Client{},
-		Accounts:       make(map[string][]Account),
+		Emitter:       emission.NewEmitter(),
+		Providers:     RegisteredProviders(),
+		resolverQueue: newQueue(),
+		ResolvedQueue: newQueue(),
+		retrievers:    retrievers,
+		httpClient:    new(http.Client),
+		Accounts:      make(map[string][]Account),
 	}
 }
 
@@ -58,15 +58,15 @@ func NewClientWith(retrievers, resolvers int) *Client {
 // Returns a WaitGroup for when the downloads are complete.
 func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 	wg := new(sync.WaitGroup)
-	wg.Add(1)
+	wg.Add(len(urls) + 1)
 	go func() {
 		defer wg.Done()
-		units := d.group(urls)
-		wg.Add(len(units))
-		for _, unit := range units {
-			wrapped := &resolveJob{d, wg, unit}
-			d.resolverQueue.enqueue(wrapped)
+		requests := make([]*request, len(urls))
+		for i, u := range urls {
+			// by default, maintain the order of the URLs, so first URL has highest priority.
+			requests[i] = rootRequest(u, wg, len(urls)-i)
 		}
+		d.resolverQueue.enqueueAll(requests)
 	}()
 	return wg
 }
@@ -83,9 +83,7 @@ func (d *Client) configure() {
 func (d *Client) Start() {
 	logrus.Debugf("Client#Start: %v workers", d.retrievers)
 	d.configure()
-	for i := 0; i < d.resolvers; i++ {
-		go d.workResolve()
-	}
+	go d.workResolve()
 	for i := 0; i < d.retrievers; i++ {
 		go d.workRetrieve()
 	}
@@ -106,6 +104,25 @@ func (d *Client) Use(acc Account) {
 func (d *Client) DryRun() {
 	d.dryrun = true
 	d.Start()
+}
+
+// Resolve starts this Client in 'Resolve' mode, meaning there are no
+// retrievers, and the wait groups will not wait for the retrievers to do their job.
+func (d *Client) Resolve() {
+	d.retrievers = 0
+	d.Start()
+}
+
+func (d *Client) Finalize() {
+	d.ResolvedQueue.Finalize()
+	d.resolverQueue.Finalize()
+}
+
+func (d *Client) Stop() {
+	close(d.ResolvedQueue.get)
+	close(d.ResolvedQueue.getAll)
+	close(d.resolverQueue.get)
+	close(d.resolverQueue.getAll)
 }
 
 func (d *Client) dryRun(format string, is ...interface{}) bool {
@@ -137,4 +154,9 @@ func (d *Client) OnError(f func(File, error)) {
 // It passes the original URLs, the File if successful or the error if not.
 func (d *Client) OnResolve(f func(*url.URL, File, error)) {
 	d.On(eResolve, f)
+}
+
+// OnDeadend calls the given hook when a file is offline.
+func (d *Client) OnDeadend(f func(*url.URL)) {
+	d.On(eDeadend, f)
 }

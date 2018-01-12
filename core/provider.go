@@ -47,12 +47,10 @@ func (ps Providers) GetProvider(name string) Provider {
 	})
 }
 
-// FindProvider searches providers (in reverse order).
+// FindProvider searches providers (in order).
 // Returns the first to satisfy the predicate
 func (ps Providers) FindProvider(f func(Provider) bool) Provider {
-	l := len(ps)
-	for i := range ps {
-		p := ps[l-1-i]
+	for _, p := range ps {
 		if f(p) {
 			return p
 		}
