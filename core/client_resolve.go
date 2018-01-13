@@ -82,7 +82,7 @@ func (d *Client) units(requests []*request) []resolveUnit {
 				if reqs != nil {
 					panic("non-nil request on err!")
 				}
-				reqs = req.resolvesTo(errored(req.u, err)).Wrap()
+				reqs = req.resolvesTo(errored(req.root().u, req.u, err)).Wrap()
 			}
 			return reqs
 		})
@@ -98,7 +98,7 @@ func (d *Client) units(requests []*request) []resolveUnit {
 				reqs = make([]api.Request, len(rs))
 				for i, req := range rs {
 					local := req.(*request)
-					reqs[i] = local.resolvesTo(errored(local.root().u, err))
+					reqs[i] = local.resolvesTo(errored(local.root().u, local.u, err))
 				}
 			}
 			return reqs

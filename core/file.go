@@ -41,7 +41,7 @@ func online(f api.File, orig *url.URL, done func()) File { return onlineFile{fil
 
 func offline(orig, curr *url.URL) File { return offlineFile{file{nil, orig}, curr} }
 
-func errored(orig *url.URL, err error) File { return erroredFile{file{nil, orig}, err} }
+func errored(orig, curr *url.URL, err error) File { return erroredFile{file{nil, orig}, curr, err} }
 
 type file struct {
 	api.File
@@ -73,6 +73,7 @@ func (f offlineFile) URL() *url.URL       { return f.u }
 
 type erroredFile struct {
 	file
+	u   *url.URL
 	err error
 }
 
@@ -80,4 +81,4 @@ func (f erroredFile) Err() error          { return f.err }
 func (f erroredFile) Offline() bool       { panic("Offline() on errored file") }
 func (f erroredFile) LengthUnknown() bool { panic("LengthUnknown() on errored file") }
 func (f erroredFile) done()               { panic("done() on errored file") }
-func (f erroredFile) URL() *url.URL       { return f.OriginalURL() }
+func (f erroredFile) URL() *url.URL       { return f.u }
