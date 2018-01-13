@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -129,32 +128,40 @@ func cmdResolve(args []string, opts *options) int {
 	wg.Wait()
 	client.Finalize()
 	var totalLength int64
+	var unknownFactor bool
+	ret := 0
 	for file := range client.ResolvedQueue.Dequeue() {
-		if file.Offline() {
+		if file.Err() != nil {
+			fmt.Printf("errored     %s - %v\n", file.URL(), file.Err().Error())
+			unknownFactor = true
+			ret = 1
+		} else if file.Offline() {
 			fmt.Printf("offline     %s\n", file.URL())
+			unknownFactor = true
 		} else if file.LengthUnknown() {
 			fmt.Printf("???????     %s\n", file.URL())
 		} else {
 			totalLength += file.Size()
 			length := units.BytesSize(float64(file.Size()))
-			fmt.Printf("%9s   %s", length, file.URL())
+			fmt.Printf("%9s   %s", length, file.Name())
 			sum, algo, _ := file.Checksum()
-			pathSegments := strings.Split(file.URL().RequestURI(), "/")
-			uriDiffersFromFile := pathSegments[len(pathSegments)-1] != file.Name()
-			if opts.Resolve.Full && (sum != "" || uriDiffersFromFile) {
+			if opts.Resolve.Full {
 				if sum == "" {
-					fmt.Printf(" (%s)", file.Name())
-				} else if uriDiffersFromFile {
-					fmt.Printf(" (%s, %s: %s)", file.Name(), algo, sum)
+					fmt.Printf(" (%s)", file.URL())
 				} else {
-					fmt.Printf(" (%s: %s)", algo, sum)
+					fmt.Printf(" (%s, %s: %s)", file.URL(), algo, sum)
 				}
 			}
 			fmt.Println()
 		}
 	}
-	fmt.Println(units.BytesSize(float64(totalLength)))
-	return 0
+	size, unit := units.Bytes(float64(totalLength))
+	format := "TOTAL %s %s\n"
+	if unknownFactor {
+		format = "TOTAL %s+ %s\n"
+	}
+	fmt.Printf(format, size, unit)
+	return ret
 }
 
 func cmdVersion(args []string, opts *options) int {

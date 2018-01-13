@@ -34,17 +34,18 @@ func (q *queue) List() []File {
 	cjs := make([]File, pq.Len())
 	i := 0
 	for pq.Len() > 0 {
-		cjs[i] = heap.Pop(&pq).(*request).file
+		cjs[i] = pq.peek().file
+		heap.Pop(&pq)
 		i++
 	}
 	return cjs
 }
 
-func (q *queue) Set(f File, prio float64) {
+func (q *queue) Set(f File, prio int) {
 	q.Job(func() {
 		for index, item := range *q.pQueue {
 			if item.file == f {
-				item.prio = float64(prio)
+				item.prio = prio
 				heap.Fix(q, index)
 				break
 			}
@@ -53,11 +54,11 @@ func (q *queue) Set(f File, prio float64) {
 }
 
 // returns whether the remove was sucessful
-func (q *queue) remove(req *request) <-chan bool {
+func (q *queue) Remove(f File) <-chan bool {
 	b := make(chan bool, 1)
 	q.Job(func() {
 		for index, item := range *q.pQueue {
-			if item == req {
+			if item.file == f {
 				heap.Remove(q, index)
 				b <- true
 				return
@@ -140,7 +141,7 @@ func (pq pQueue) Len() int {
 }
 
 func (pq pQueue) Less(i, j int) bool {
-	return pq[i].precedes(pq[j])
+	return pq[i].less(pq[j])
 }
 
 func (pq pQueue) Swap(i, j int) {

@@ -1,8 +1,23 @@
 package core
 
 import (
+	"net/url"
+
 	"github.com/uget/uget/core/api"
 )
+
+func Resolve(urls []*url.URL) []File {
+	c := NewClient()
+	wg := c.AddURLs(urls)
+	c.Resolve()
+	wg.Wait()
+	c.Finalize()
+	files := make([]File, 0, len(urls))
+	for file := range c.ResolvedQueue.Dequeue() {
+		files = append(files, file)
+	}
+	return files
+}
 
 func (d *Client) workResolve() {
 	for jobs := range d.resolverQueue.getAll {
@@ -14,16 +29,11 @@ func (d *Client) resolve(jobs []*request) {
 	units := d.units(jobs)
 	for _, unit := range units {
 		go func(unit resolveUnit) {
-			requests, err := unit()
+			requests := unit()
 			for _, req := range requests {
 				request := req.(*request)
-				if err != nil {
-					go d.EmitSync(eResolve, req.URL, nil, err)
-					request.done()
-					return
-				}
 				if request.resolved() {
-					if request.file.Offline() || d.retrievers == 0 {
+					if request.file.Err() == nil && request.file.Offline() || d.retrievers == 0 {
 						request.done()
 					} else {
 						go d.EmitSync(eResolve, request.u, request.file, nil)
@@ -37,7 +47,7 @@ func (d *Client) resolve(jobs []*request) {
 	}
 }
 
-type resolveUnit func() ([]api.Request, error)
+type resolveUnit func() []api.Request
 
 // returns: units, retrievable (resolved)
 func (d *Client) units(requests []*request) []resolveUnit {
@@ -45,22 +55,32 @@ func (d *Client) units(requests []*request) []resolveUnit {
 	fns := make([]resolveUnit, 0, len(single)+len(multi))
 	for req, resolver := range single {
 		request := req
-		fns = append(fns, func() ([]api.Request, error) {
+		fns = append(fns, func() []api.Request {
 			reqs, err := resolver.ResolveOne(request)
-			if reqs == nil {
-				reqs = []api.Request{request}
+			if err != nil {
+				if reqs != nil {
+					panic("non-nil request on err!")
+				}
+				reqs = req.resolvesTo(errored(req.u, err)).Wrap()
 			}
-			return reqs, err
+			return reqs
 		})
 	}
 	for resolver, reqs := range multi {
 		rs := reqs
-		fns = append(fns, func() ([]api.Request, error) {
+		fns = append(fns, func() []api.Request {
 			reqs, err := resolver.ResolveMany(reqs)
-			if reqs == nil {
-				reqs = rs
+			if err != nil {
+				if reqs != nil {
+					panic("non-nil requests on err!")
+				}
+				reqs = make([]api.Request, len(rs))
+				for i, req := range rs {
+					local := req.(*request)
+					reqs[i] = local.resolvesTo(errored(local.root().u, err))
+				}
 			}
-			return reqs, err
+			return reqs
 		})
 	}
 	return fns

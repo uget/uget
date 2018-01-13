@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"hash"
 	"net/http"
 	"net/url"
@@ -9,6 +10,9 @@ import (
 // FileSizeUnknown (returned by File#Size) denotes a file's size is unknown
 // e.g. HEAD request without Content-Length
 const FileSizeUnknown = -1
+
+// ErrTODO is a special error type for unimplemented placeholder procedures
+var ErrTODO = errors.New("not implemented")
 
 // Account represents a persistent record on a provider (useful e.g. to access restricted files)
 type Account interface {
@@ -61,19 +65,27 @@ type Configured interface {
 	Configure(*Config)
 }
 
+// Request is used between core and providers.
+//
+// The generating
 type Request interface {
-	Root() Request
+	// Returns the URL of this request.
 	URL() *url.URL
 
-	// Wrap is a helper for SingleResolvers. Wraps this Request in a singleton slice.
+	// Wrap wraps this Request in a singleton slice. It is a helper for SingleResolvers.
 	Wrap() []Request
 
-	// Generating methods
-
-	// ResolvesTo
+	// ResolvesTo generates a resolved child request which must not be resolved any further.
+	// This must lead to a valid and downloadable resource.
 	ResolvesTo(File) Request
-	Deadend() Request
+
+	// Deadend generates a resolved child request represents an unavailable resource.
+	Deadend(*url.URL) Request
+
+	// Yields generates an unresolved child request with the given URL.
 	Yields(*url.URL) Request
+
+	// Bundles generates multiple unresolved child request with the given URL.
 	Bundles([]*url.URL) []Request
 }
 
@@ -106,7 +118,6 @@ type resolver interface {
 type MultiResolver interface {
 	resolver
 
-	// first return value mustn't be nil!
 	ResolveMany([]Request) ([]Request, error)
 }
 
@@ -114,7 +125,6 @@ type MultiResolver interface {
 type SingleResolver interface {
 	resolver
 
-	// first return value mustn't be nil!
 	ResolveOne(Request) ([]Request, error)
 }
 

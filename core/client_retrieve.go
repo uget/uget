@@ -14,7 +14,9 @@ import (
 
 func (d *Client) workRetrieve() {
 	for file := range d.ResolvedQueue.get {
-		if file.Offline() {
+		if file.Err() != nil {
+			panic(fmt.Sprintf("File error in retrieve: %v", file.Err()))
+		} else if file.Offline() {
 			go d.EmitSync(eDeadend, file.URL())
 		} else {
 			d.download(file)

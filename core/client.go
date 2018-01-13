@@ -63,8 +63,7 @@ func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
 		defer wg.Done()
 		requests := make([]*request, len(urls))
 		for i, u := range urls {
-			// by default, maintain the order of the URLs, so first URL has highest priority.
-			requests[i] = rootRequest(u, wg, len(urls)-i)
+			requests[i] = rootRequest(u, wg, i)
 		}
 		d.resolverQueue.enqueueAll(requests)
 	}()

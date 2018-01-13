@@ -1,7 +1,6 @@
 package core
 
 import (
-	"math"
 	"net/url"
 	"sync"
 
@@ -12,17 +11,56 @@ type request struct {
 	wg     *sync.WaitGroup
 	parent *request
 	u      *url.URL
-	prio   float64
+	order  int
+	prio   int
 	file   File
+}
+
+func (r *request) depth() int {
+	if r.parent == nil {
+		return 0
+	}
+	return r.parent.depth() + 1
+}
+
+func (r *request) level(other *request, rDepth, oDepth int) (*request, *request) {
+	if rDepth > oDepth {
+		return r.parent.level(other, rDepth-1, oDepth)
+	} else if oDepth > rDepth {
+		return r.level(other.parent, rDepth, oDepth-1)
+	}
+	return r, other
+}
+
+// constraint: r.depth() == other.depth()
+func (r *request) compareLeveled(other *request) int {
+	if r.parent == nil {
+		// we are at the root on both sides
+		return r.order - other.order
+	}
+	diff := r.parent.compareLeveled(other.parent)
+	if diff == 0 {
+		return r.order - other.order
+	}
+	return diff
+}
+
+func (r *request) precedesUnleveled(other *request) bool {
+	r, other = r.level(other, r.depth(), other.depth())
+	return r.compareLeveled(other) < 0
+}
+
+func (r *request) less(other *request) bool {
+	return r.prio < other.prio || r.precedesUnleveled(other)
 }
 
 func (r *request) URL() *url.URL {
 	return r.u
 }
 
-func (r *request) Root() api.Request {
+func (r *request) root() *request {
 	if r.parent != nil {
-		return r.parent.Root()
+		return r.parent.root()
 	}
 	return r
 }
@@ -31,15 +69,23 @@ func (r *request) Wrap() []api.Request {
 	return []api.Request{r}
 }
 
-func (r *request) ResolvesTo(f api.File) api.Request {
+func (r *request) resolvesTo(f File) api.Request {
 	child := r.child()
-	child.file = onlineFile{f, r.done}
+	child.file = f
 	return child
 }
 
-func (r *request) Deadend() api.Request {
+func (r *request) ResolvesTo(f api.File) api.Request {
+	return r.resolvesTo(online(f, r.root().URL(), r.done))
+}
+
+func (r *request) Deadend(u *url.URL) api.Request {
+	if u == nil {
+		u = r.u
+	}
 	child := r.child()
-	child.file = offlineFile{}
+	child.file = offline(r.root().u, u)
+	child.u = u
 	return child
 }
 
@@ -50,25 +96,15 @@ func (r *request) Yields(u *url.URL) api.Request {
 }
 
 // Bundles yields multiple requests form this request, e.g. if this request leads to a "folder".
-//
-// This method increases the priority of the child requests using `math.Nextafter`
-// to maintain the (sub-)order. As even larger integers have a big float64 gap between them,
-// this should not be a problem! To give an example:
-// Between 100,000,000,000 and 100,000,000,001 there are still 2^16 float64 values. Particularly,
-// this means that in a normal run, the 100,000,000,000th request URL would have to bundle 2^16-1
-// further requests just so that the 2^16th request has (insignificant) precedence over that next
-// root request.
-func (r *request) Bundles(us []*url.URL) []api.Request {
+func (r *request) Bundles(urls []*url.URL) []api.Request {
 	// 1 Request -> n Requests. We need to add n-1 to the WaitGroup.
 	// if this URL leads to e.g. an empty folder and this method was still called (error was not,
 	// returned), that means the request is done and adding -1 to wg is still correct.
-	r.wg.Add(len(us) - 1)
-	children := make([]api.Request, len(us))
-	prio := r.prio
-	for i, u := range us {
-		prio = math.Nextafter(prio, math.Inf(-1))
+	r.wg.Add(len(urls) - 1)
+	children := make([]api.Request, len(urls))
+	for i, u := range urls {
 		child := r.child()
-		child.prio = prio
+		child.order = i
 		child.u = u
 		children[i] = child
 	}
@@ -90,16 +126,12 @@ func (r *request) child() *request {
 	return &request{
 		parent: r,
 		wg:     r.wg,
-		prio:   r.prio,
+		order:  0,
 		u:      r.u,
 	}
 }
 
-func (r *request) precedes(other api.Request) bool {
-	return r.prio > other.(*request).prio
-}
-
 // the rootRequest takes integers, the float64 part is only relevant for request#Bundles
-func rootRequest(u *url.URL, wg *sync.WaitGroup, priority int) *request {
-	return &request{wg: wg, u: u, prio: float64(priority)}
+func rootRequest(u *url.URL, wg *sync.WaitGroup, order int) *request {
+	return &request{wg: wg, u: u, order: order}
 }
