@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	path "path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -12,7 +13,7 @@ import (
 // InitLogger initiates the logger to log into the APP_USER_LOG path
 func InitLogger() {
 	logrus.SetLevel(logrus.DebugLevel)
-	if !isatty.IsTerminal(os.Stderr.Fd()) {
+	if strings.HasSuffix(os.Args[0], ".test") || !isatty.IsTerminal(os.Stderr.Fd()) {
 		logrus.SetOutput(os.Stderr)
 		return
 	}
