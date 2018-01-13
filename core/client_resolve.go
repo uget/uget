@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/url"
+	"sync"
 
 	"github.com/uget/uget/core/api"
 )
@@ -27,8 +28,23 @@ func (d *Client) workResolve() {
 
 func (d *Client) resolve(jobs []*request) {
 	units := d.units(jobs)
+	wg := new(sync.WaitGroup)
+	multis := make(chan *request)
+	wg.Add(len(units))
+	go func() {
+		reqs := make([]*request, 0, len(units))
+		for req := range multis {
+			reqs = append(reqs, req)
+		}
+		d.resolverQueue.enqueueAll(reqs)
+	}()
+	go func() {
+		wg.Wait()
+		close(multis)
+	}()
 	for _, unit := range units {
 		go func(unit resolveUnit) {
+			defer wg.Done()
 			requests := unit()
 			for _, req := range requests {
 				request := req.(*request)
@@ -40,7 +56,12 @@ func (d *Client) resolve(jobs []*request) {
 					}
 					d.ResolvedQueue.enqueue(request)
 				} else {
-					d.resolverQueue.enqueue(request)
+					_, ablty := d.resolvability(request)
+					if ablty == api.Single {
+						d.resolverQueue.enqueue(request)
+					} else {
+						multis <- request
+					}
 				}
 			}
 		}(unit)
@@ -86,7 +107,7 @@ func (d *Client) units(requests []*request) []resolveUnit {
 	return fns
 }
 
-// returns: (SingleResolvable, MultiResolvable, Retrievable)
+// returns: (SingleResolvable, MultiResolvable)
 func (d *Client) group(rs []*request) (map[*request]SingleResolver, map[MultiResolver][]api.Request) {
 	single := make(map[*request]SingleResolver)
 	multi := make(map[MultiResolver][]api.Request)
@@ -94,20 +115,28 @@ func (d *Client) group(rs []*request) (map[*request]SingleResolver, map[MultiRes
 		if r.resolved() {
 			panic("Resolved in Client#group: " + r.URL().String())
 		}
-	Loop:
-		for _, p := range d.Providers {
-			if resolver, ok := p.(resolver); ok {
-				switch resolver.CanResolve(r.URL()) {
-				case api.Single:
-					single[r] = resolver.(SingleResolver)
-					break Loop
-				case api.Multi:
-					mr := resolver.(MultiResolver)
-					multi[mr] = append(multi[mr], r)
-					break Loop
-				}
-			}
+		resolver, ablty := d.resolvability(r)
+		if ablty == api.Single {
+			sr := resolver.(SingleResolver)
+			single[r] = sr
+		} else {
+			mr := resolver.(MultiResolver)
+			multi[mr] = append(multi[mr], r)
 		}
 	}
 	return single, multi
+}
+
+func (d *Client) resolvability(r *request) (resolver, api.Resolvability) {
+	for _, p := range d.Providers {
+		if resolver, ok := p.(resolver); ok {
+			switch resolver.CanResolve(r.URL()) {
+			case api.Single:
+				return resolver, api.Single
+			case api.Multi:
+				return resolver, api.Multi
+			}
+		}
+	}
+	panic("unreachable")
 }
