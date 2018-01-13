@@ -46,15 +46,24 @@ var binaryAbbrs = []string{"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB",
 
 // HumanSize returns a human-readable approximation of a size using SI standard (eg. "44kB", "17MB")
 func HumanSize(size float64) string {
-	return intToString(float64(size), 1000.0, decimapAbbrs)
+	return join(intToString(float64(size), 1000.0, decimapAbbrs))
 }
 
 // BytesSize returns a base-2 approximation of a size using IEC standard (eg. "44KiB", "17MiB")
 func BytesSize(size float64) string {
+	return join(Bytes(size))
+}
+
+func join(s, unit string) string {
+	return fmt.Sprintf("%s %s", s, unit)
+}
+
+// Bytes returns a base-2 approximation of a size using IEC standard (eg. "44KiB", "17MiB")
+func Bytes(size float64) (string, string) {
 	return intToString(size, 1024.0, binaryAbbrs)
 }
 
-func intToString(size, unit float64, _map []string) string {
+func intToString(size, unit float64, _map []string) (string, string) {
 	i := 0
 	for size >= unit {
 		size = size / unit
@@ -70,7 +79,7 @@ func intToString(size, unit float64, _map []string) string {
 			s += ".0"
 		}
 	}
-	return fmt.Sprintf("%s %s", s, _map[i])
+	return s, _map[i]
 }
 
 // FromHumanSize returns an integer from a human-readable specification of a
