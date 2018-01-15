@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -61,7 +62,21 @@ type file struct {
 
 func (f file) OriginalURL() *url.URL { return f.original }
 func (f file) ID() string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(f.File.URL().String())))
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(f.URL().String())))
+}
+
+func (f file) MarshalJSON() ([]byte, error) {
+	data := map[string]interface{}{
+		"id":       f.ID(),
+		"provider": f.Provider().Name(),
+		"name":     f.Name(),
+		"url":      f.URL().String(),
+		"size":     f.Size(),
+	}
+	if cks, algo, _ := f.Checksum(); cks != "" {
+		data["checksum:"+strings.ToLower(algo)] = cks
+	}
+	return json.Marshal(data)
 }
 
 type onlineFile struct {
