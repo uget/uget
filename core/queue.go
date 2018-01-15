@@ -6,6 +6,7 @@ import (
 	"github.com/uget/uget/utils"
 )
 
+// Queue is a buffered thread safe priority queue
 type Queue interface {
 	Dequeue() <-chan File
 	List() []File
@@ -53,20 +54,22 @@ func (q *queue) Set(f File, prio int) {
 	})
 }
 
-// returns whether the remove was sucessful
-func (q *queue) Remove(f File) <-chan bool {
-	b := make(chan bool, 1)
+// Remove unlinks the File with the specified ID from this queue.
+// The removed file, if present, will be sent through the channel.
+// Either way, the channel will be closed.
+func (q *queue) Remove(id string) <-chan File {
+	fchan := make(chan File, 1)
 	q.Job(func() {
+		defer close(fchan)
 		for index, item := range *q.pQueue {
-			if item.file.ID() == f.ID() {
+			if item.file.ID() == id {
 				heap.Remove(q, index)
-				b <- true
+				fchan <- item.file
 				return
 			}
 		}
-		b <- false
 	})
-	return b
+	return fchan
 }
 
 func newQueue() *queue {
