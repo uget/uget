@@ -7,6 +7,7 @@ import (
 	"github.com/uget/uget/core/api"
 )
 
+// Resolve returns meta information on the given URLs
 func Resolve(urls []*url.URL) []File {
 	c := NewClient()
 	wg := c.AddURLs(urls)

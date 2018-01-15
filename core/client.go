@@ -76,7 +76,7 @@ func (d *Client) AddURLs(urls []*url.URL) Container {
 func (d *Client) configure() {
 	for _, p := range d.Providers {
 		if cfg, ok := p.(Configured); ok {
-			cfg.Configure(&Config{d.Accounts[p.Name()]})
+			cfg.Configure(&Config{Accounts: d.Accounts[p.Name()]})
 		}
 	}
 }
@@ -117,11 +117,13 @@ func (d *Client) Resolve() {
 	d.Start()
 }
 
+// Finalize gracefully stops this Client
 func (d *Client) Finalize() {
 	d.ResolvedQueue.Finalize()
 	d.resolverQueue.Finalize()
 }
 
+// Stop stops this Client immediately
 func (d *Client) Stop() {
 	close(d.ResolvedQueue.get)
 	close(d.ResolvedQueue.getAll)
