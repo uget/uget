@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -79,6 +80,9 @@ func (d *Client) download(file File) {
 			for k, v := range headers {
 				req.Header.Set(k, v)
 			}
+			ctx, cancel := context.WithCancel(req.Context())
+			defer cancel()
+			req = req.WithContext(ctx)
 			resp, err := d.httpClient.Do(req)
 			if err != nil {
 				d.emit(eError, file, err)
@@ -109,10 +113,10 @@ func (d *Client) download(file File) {
 				d.emit(eError, file, err)
 				return
 			}
-			defer f.Close()
-			getter := download(file, reader).to(f).via(retriever)
-			d.emit(eDownload, getter)
-			getter.start()
+			download := download(file, reader).to(f).via(retriever)
+			download.cancel = cancel
+			d.emit(eDownload, download)
+			download.do()
 		} else {
 			d.emit(eError, file, err)
 		}

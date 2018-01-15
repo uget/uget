@@ -218,8 +218,10 @@ func cmdGet(args []string, opts *options) int {
 				inf.prog = inf.dl.Progress()
 				if inf.dl.Done() {
 					inf.ignore = true
-					if err := inf.dl.Err(); err != nil {
-						con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), err))
+					if inf.dl.Err() != nil {
+						con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), inf.dl.Err()))
+					} else if inf.dl.Canceled() {
+						con.EditRow(inf.row, fmt.Sprintf("%s: stopped.", inf.dl.File.Name()))
 					} else {
 						name := inf.dl.File.Name()
 						dl := units.BytesSize(float64(inf.dl.Progress()))
