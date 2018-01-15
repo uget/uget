@@ -58,18 +58,19 @@ func NewClientWith(retrievers int) *Client {
 
 // AddURLs adds a list of URLs to the download queue.
 // Returns a WaitGroup for when the downloads are complete.
-func (d *Client) AddURLs(urls []*url.URL) *sync.WaitGroup {
+func (d *Client) AddURLs(urls []*url.URL) Container {
 	wg := new(sync.WaitGroup)
+	container := &container{id: ContainerID(urls), wg: wg}
 	wg.Add(len(urls) + 1)
 	go func() {
 		defer wg.Done()
 		requests := make([]*request, len(urls))
 		for i, u := range urls {
-			requests[i] = rootRequest(u, wg, i)
+			requests[i] = rootRequest(u, container, i)
 		}
 		d.resolverQueue.enqueueAll(requests)
 	}()
-	return wg
+	return container
 }
 
 func (d *Client) configure() {

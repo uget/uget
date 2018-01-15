@@ -2,18 +2,17 @@ package core
 
 import (
 	"net/url"
-	"sync"
 
 	"github.com/uget/uget/core/api"
 )
 
 type request struct {
-	wg     *sync.WaitGroup
-	parent *request
-	u      *url.URL
-	order  int
-	prio   int
-	file   File
+	container *container
+	parent    *request
+	u         *url.URL
+	order     int
+	prio      int
+	file      File
 }
 
 func (r *request) depth() int {
@@ -100,7 +99,7 @@ func (r *request) Bundles(urls []*url.URL) []api.Request {
 	// 1 Request -> n Requests. We need to add n-1 to the WaitGroup.
 	// if this URL leads to e.g. an empty folder and this method was still called (error was not,
 	// returned), that means the request is done and adding -1 to wg is still correct.
-	r.wg.Add(len(urls) - 1)
+	r.container.wg.Add(len(urls) - 1)
 	children := make([]api.Request, len(urls))
 	for i, u := range urls {
 		child := r.child()
@@ -112,7 +111,7 @@ func (r *request) Bundles(urls []*url.URL) []api.Request {
 }
 
 func (r *request) done() {
-	r.wg.Done()
+	r.container.wg.Done()
 }
 
 func (r *request) resolved() bool {
@@ -124,14 +123,14 @@ func (r *request) child() *request {
 		panic("child() called on resolved request")
 	}
 	return &request{
-		parent: r,
-		wg:     r.wg,
-		order:  0,
-		u:      r.u,
+		parent:    r,
+		container: r.container,
+		order:     0,
+		u:         r.u,
 	}
 }
 
 // the rootRequest takes integers, the float64 part is only relevant for request#Bundles
-func rootRequest(u *url.URL, wg *sync.WaitGroup, order int) *request {
-	return &request{wg: wg, u: u, order: order}
+func rootRequest(u *url.URL, c *container, order int) *request {
+	return &request{container: c, u: u, order: order}
 }
