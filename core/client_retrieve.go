@@ -17,7 +17,7 @@ func (d *Client) workRetrieve() {
 		if file.Err() != nil {
 			panic(fmt.Sprintf("File error in retrieve: %v", file.Err()))
 		} else if file.Offline() {
-			go d.EmitSync(eDeadend, file.URL())
+			d.emit(eDeadend, file.URL())
 		} else {
 			d.download(file)
 			file.done()
@@ -57,13 +57,13 @@ func (d *Client) download(file File) {
 		if fi.Size() == file.Size() {
 			if d.Skip {
 				logrus.Debugf("Client#download (%v): already exists... returning", file.Name())
-				go d.EmitSync(eSkip, file)
+				d.emit(eSkip, file)
 				return
 			}
 			logrus.Debugf("Client#download (%v): already exists... deleting", file.Name())
 			err = os.Remove(path)
 			if err != nil {
-				go d.EmitSync(eError, file, err)
+				d.emit(eError, file, err)
 				return
 			}
 		} else if !d.NoContinue {
@@ -71,7 +71,7 @@ func (d *Client) download(file File) {
 			logrus.Infof("Client#download (%v): +header range %s", file.Name(), headers["Range"])
 		}
 	} else if !os.IsNotExist(err) {
-		go d.EmitSync(eError, 0, err)
+		d.emit(eError, 0, err)
 		return
 	}
 	if !d.dryRun("fetch %s with %s provider.", file.Name(), retriever.Name()) {
@@ -81,7 +81,7 @@ func (d *Client) download(file File) {
 			}
 			resp, err := d.httpClient.Do(req)
 			if err != nil {
-				go d.EmitSync(eError, file, err)
+				d.emit(eError, file, err)
 				return
 			}
 			defer resp.Body.Close()
@@ -93,7 +93,7 @@ func (d *Client) download(file File) {
 			// Disallow redirects as well -- we haven't set a redirect handler
 			if !strings.HasPrefix(resp.Status, "2") {
 				logrus.Errorf("Client#download (%v): %v", file.Name(), resp.Status)
-				go d.EmitSync(eError, file, fmt.Errorf("status code %v", resp.Status))
+				d.emit(eError, file, fmt.Errorf("status code %v", resp.Status))
 				return
 			}
 			reader := &passThru{Reader: resp.Body}
@@ -106,15 +106,15 @@ func (d *Client) download(file File) {
 			}
 			f, err := os.OpenFile(path, openFlags, 0644)
 			if err != nil {
-				go d.EmitSync(eError, file, err)
+				d.emit(eError, file, err)
 				return
 			}
 			defer f.Close()
 			getter := download(file, reader).to(f).via(retriever)
-			go d.EmitSync(eDownload, getter)
+			d.emit(eDownload, getter)
 			getter.start()
 		} else {
-			go d.EmitSync(eError, file, err)
+			d.emit(eError, file, err)
 		}
 	}
 	logrus.Debugf("Client#download (%v): EXIT", file.Name())

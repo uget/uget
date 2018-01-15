@@ -52,7 +52,7 @@ func (d *Client) resolve(jobs []*request) {
 					if request.file.Err() == nil && request.file.Offline() || d.retrievers == 0 {
 						request.done()
 					} else {
-						go d.EmitSync(eResolve, request.u, request.file, nil)
+						d.emit(eResolve, request.u, request.file, nil)
 					}
 					d.ResolvedQueue.enqueue(request)
 				} else {

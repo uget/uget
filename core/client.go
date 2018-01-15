@@ -12,8 +12,10 @@ import (
 	"github.com/chuckpreslar/emission"
 )
 
+type event int
+
 const (
-	eDownload = iota
+	eDownload event = iota
 	eError
 	eResolve
 	eDeadend
@@ -22,7 +24,6 @@ const (
 
 // Client manages downloads
 type Client struct {
-	*emission.Emitter
 	Directory     string
 	Skip          bool
 	NoContinue    bool
@@ -33,6 +34,7 @@ type Client struct {
 	resolverQueue *queue
 	retrievers    int // number of retriever/downloader jobs
 	dryrun        bool
+	emitter       *emission.Emitter
 }
 
 // NewClient creates a new Client with 3 retrievers and 1 resolver
@@ -44,7 +46,7 @@ func NewClient() *Client {
 // If amount is 0, the Client works in resolve-only mode.
 func NewClientWith(retrievers int) *Client {
 	return &Client{
-		Emitter:       emission.NewEmitter(),
+		emitter:       emission.NewEmitter(),
 		Providers:     RegisteredProviders(),
 		resolverQueue: newQueue(),
 		ResolvedQueue: newQueue(),
@@ -138,26 +140,30 @@ func (d *Client) dryRun(format string, is ...interface{}) bool {
 
 // OnDownload calls the given hook when a new Download is started. The download object is passed.
 func (d *Client) OnDownload(f func(*Download)) {
-	d.On(eDownload, f)
+	d.emitter.On(eDownload, f)
 }
 
 // OnSkip calls the given hook when a download is skipped
 func (d *Client) OnSkip(f func(File)) {
-	d.On(eSkip, f)
+	d.emitter.On(eSkip, f)
 }
 
 // OnError calls the given hook when an error occurred in `Download`
 func (d *Client) OnError(f func(File, error)) {
-	d.On(eError, f)
+	d.emitter.On(eError, f)
 }
 
 // OnResolve calls the given hook when a resolve job is finished.
 // It passes the original URLs, the File if successful or the error if not.
 func (d *Client) OnResolve(f func(*url.URL, File, error)) {
-	d.On(eResolve, f)
+	d.emitter.On(eResolve, f)
 }
 
 // OnDeadend calls the given hook when a file is offline.
 func (d *Client) OnDeadend(f func(*url.URL)) {
-	d.On(eDeadend, f)
+	d.emitter.On(eDeadend, f)
+}
+
+func (d *Client) emit(e event, is ...interface{}) {
+	go d.emitter.EmitSync(e, is...)
 }
