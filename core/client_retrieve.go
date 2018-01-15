@@ -56,7 +56,7 @@ func (d *Client) download(file File) {
 	if err == nil {
 		logrus.Debugf("Client#download (%v): local: %v, remote: %v", file.Name(), fi.Size(), file.Size())
 		if fi.Size() == file.Size() {
-			if d.Skip {
+			if !d.NoSkip {
 				logrus.Debugf("Client#download (%v): already exists... returning", file.Name())
 				d.emit(eSkip, file)
 				return

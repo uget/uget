@@ -179,7 +179,7 @@ func cmdGet(args []string, opts *options) int {
 	}
 	downloader := core.NewClientWith(opts.Get.Jobs)
 	useAccounts(downloader)
-	downloader.Skip = !opts.Get.NoSkip
+	downloader.NoSkip = opts.Get.NoSkip
 	downloader.NoContinue = opts.Get.NoContinue
 	wg := downloader.AddURLs(urls)
 	if opts.Get.DryRun {

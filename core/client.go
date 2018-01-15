@@ -25,7 +25,7 @@ const (
 // Client manages downloads
 type Client struct {
 	Directory     string
-	Skip          bool
+	NoSkip        bool
 	NoContinue    bool
 	Providers     Providers
 	Accounts      map[string][]Account
