@@ -65,9 +65,11 @@ type Configured interface {
 	Configure(*Config)
 }
 
-// Request is used between core and providers.
+// Request is used between the core module and providers.
+// It must not be subclassed in any way and will panic!
 //
-// The generating
+// The generating methods must only be called once per request.
+//
 type Request interface {
 	// Returns the URL of this request.
 	URL() *url.URL

@@ -7,29 +7,34 @@ import (
 )
 
 // File denotes a remote file object
+//
+// For any given File, the order of method calls must be:
+//     1. `Err()` - if this returns `nil`, continue with checking the file's availability:
+//     2. `Offline()` - and if this also returns false, the file is valid and available.
+// If `Err()` returns an error, `Offline()` and all non-URL methods will panic.
+// Same for when `Offline()` returns `true`.
 type File interface {
 	api.File
 
-	// Err returns the error associated with this file.
+	// Err returns the error associated with this file, if there is any.
+	//
+	// Read the note on call order in the interface description..
 	Err() error
 
 	// Offline returns whether this file is offline.
 	//
-	// If this method returns true, other method calls to this object will panic.
-	// As such, this method should always be checked first.
+	// Read the note on call order in the interface description.
 	Offline() bool
 
 	// LengthUnknown returns whether this file's length is known
 	// e.g. HEAD request without Content-Length.
-	// panics if offline
 	LengthUnknown() bool
 
-	// OriginalURL returns the original URL that ultimately yielded this File
+	// OriginalURL returns the original URL (passed to Client) that ultimately yielded this File.
 	OriginalURL() *url.URL
 
 	// done callback when this file is done downloading.
-	// also ensures File is not implemented outside this package
-	// panics if offline
+	// also ensures File is not implemented outside this package.
 	done()
 }
 

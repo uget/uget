@@ -28,9 +28,9 @@ type Client struct {
 	NoContinue    bool
 	Providers     Providers
 	Accounts      map[string][]Account
+	ResolvedQueue *queue
 	httpClient    *http.Client
 	resolverQueue *queue
-	ResolvedQueue *queue
 	retrievers    int // number of retriever/downloader jobs
 	dryrun        bool
 }
@@ -88,6 +88,8 @@ func (d *Client) Start() {
 	}
 }
 
+// Use adds an account to this client's repertoire.
+// The account will be passed to Resolvers upon start.
 func (d *Client) Use(acc Account) {
 	pkg := reflect.ValueOf(acc).Elem().Type().PkgPath()
 	prov := d.Providers.FindProvider(func(p Provider) bool {
