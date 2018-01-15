@@ -229,6 +229,7 @@ func (m *internalAccMgr) dispatch() {
 	if err != nil {
 		logrus.Errorf("internalAccMgr#dispatch: could not initialize file watcher")
 	} else {
+		defer watcher.Close()
 		if err = watcher.Watch(m.file); err != nil {
 			logrus.Errorf("internalAccMgr#dispatch: cannot watch %s", m.file)
 		}
@@ -240,13 +241,17 @@ func (m *internalAccMgr) dispatch() {
 				m.reload()
 			}
 		case err := <-watcher.Error:
-			logrus.Errorf("internalAccMgr#reload: error watching %s: %v", m.file, err)
-		case job := <-m.JobQueue:
+			logrus.Errorf("internalAccMgr#dispatch: error watching %s: %v", m.file, err)
+		case job, ok := <-m.JobQueue:
+			if !ok {
+				logrus.Debugf("internalAccMgr#dispatch: closing.")
+				return
+			}
 			job.Work()
 			if err := m.save(); err != nil {
-				logrus.Errorf("internalAccMgr#reload: error saving %v", m.file)
+				logrus.Errorf("internalAccMgr#dispatch: error saving %v", m.file)
 			} else {
-				logrus.Debugf("internalAccMgr#reload: sucess saving %v", m.file)
+				logrus.Debugf("internalAccMgr#dispatch: sucess saving %v", m.file)
 			}
 			// this is after m.save() because of race conditions that occur if main thread exits.
 			// TODO: fix the race condition and move this up.
