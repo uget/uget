@@ -16,7 +16,7 @@ import (
 type options struct {
 	Accounts accounts `command:"accounts"`
 	Get      get      `command:"get"`
-	Resolve  resolve  `command:"resolve"`
+	Resolve  resolve  `command:"meta"`
 	Server   server   `command:"server"`
 	Daemon   daemon   `command:"daemon"`
 	Push     push     `command:"push"`

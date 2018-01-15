@@ -106,9 +106,9 @@ Get remote files:
 uget get CONTAINER_SPEC...
 ```
 
-Resolve remote files:
+Read meta information on remote files:
 ```bash
-uget resolve CONTAINER_SPEC...
+uget meta CONTAINER_SPEC...
 ```
 
 `CONTAINER_SPEC` can be a plain file with a list of URLs.
