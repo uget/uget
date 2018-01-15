@@ -58,7 +58,7 @@ func (q *queue) Remove(f File) <-chan bool {
 	b := make(chan bool, 1)
 	q.Job(func() {
 		for index, item := range *q.pQueue {
-			if item.file == f {
+			if item.file.ID() == f.ID() {
 				heap.Remove(q, index)
 				b <- true
 				return

@@ -1,7 +1,10 @@
 package core
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/uget/uget/core/api"
 )
@@ -30,6 +33,9 @@ type File interface {
 	// e.g. HEAD request without Content-Length.
 	LengthUnknown() bool
 
+	// ID returns the identifier for this file (sha256-sum of the URL string)
+	ID() string
+
 	// OriginalURL returns the original URL (passed to Client) that ultimately yielded this File.
 	OriginalURL() *url.URL
 
@@ -54,6 +60,9 @@ type file struct {
 }
 
 func (f file) OriginalURL() *url.URL { return f.original }
+func (f file) ID() string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(f.File.URL().String())))
+}
 
 type onlineFile struct {
 	file
