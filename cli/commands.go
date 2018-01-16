@@ -189,94 +189,55 @@ func cmdGet(args []string, opts *options) int {
 		return 0
 	}
 	exit := 0
-	con := console.NewConsole()
+	con := console.Updating(500 * time.Millisecond)
+	defer con.Close(true)
 	fprog := func(name string, progress, total, speed float64, via string) string {
 		s := fmt.Sprintf("%s: %5.2f%% of %9s @ %9s/s%s", name, progress/total*100, units.BytesSize(total), units.BytesSize(speed), via)
 		return s
 	}
-	type info struct {
-		dl     *core.Download
-		row    console.Row
-		rater  rate.Rater
-		via    string
-		prog   int64
-		start  time.Time
-		ignore bool
-	}
-
-	dlChan := make(chan *core.Download)
-	done := make(chan struct{})
-	update := func(rootRater rate.Rater, downloads []*info) {
-		if len(downloads) > 0 {
-			for _, inf := range downloads {
-				if inf.ignore {
-					continue
-				}
-				diff := inf.dl.Progress() - inf.prog
-				inf.rater.Add(diff)
-				rootRater.Add(diff)
-				inf.prog = inf.dl.Progress()
-				if inf.dl.Done() {
-					inf.ignore = true
-					if inf.dl.Err() != nil {
-						con.EditRow(inf.row, fmt.Sprintf("%s: error: %v", inf.dl.File.Name(), inf.dl.Err()))
-					} else if inf.dl.Canceled() {
-						con.EditRow(inf.row, fmt.Sprintf("%s: stopped.", inf.dl.File.Name()))
-					} else {
-						name := inf.dl.File.Name()
-						dl := units.BytesSize(float64(inf.dl.Progress()))
-						pt := prettyTime(time.Since(inf.start))
-						con.EditRow(inf.row, fmt.Sprintf("%s: downloaded %s in %s%s", name, dl, pt, inf.via))
-					}
-				} else {
-					con.EditRow(inf.row, fprog(inf.dl.File.Name(), float64(inf.prog), float64(inf.dl.File.Size()), float64(inf.rater.Rate()), inf.via))
-				}
-			}
-			con.Summary(fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate()))))
-		}
-	}
-	go func() {
-		defer close(done)
-		downloads := make([]*info, 0, len(urls))
-		rootRater := rate.SmoothRate(10)
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case download, ok := <-dlChan:
-				if !ok {
-					update(rootRater, downloads)
-					fmt.Println() // newline after summary
-					return
-				}
-				inf := &info{dl: download, prog: download.Progress(), start: time.Now()}
-				inf.rater = rate.SmoothRate(10)
-				if download.Provider != download.File.Provider() {
-					inf.via = fmt.Sprintf(" (via %s)", download.Provider.Name())
-				}
-				inf.row = con.AddRow(
-					fprog(download.File.Name(), float64(inf.prog), float64(download.File.Size()), 0, inf.via),
-				)
-				downloads = append(downloads, inf)
-			case <-ticker.C:
-				update(rootRater, downloads)
-			}
-		}
-	}()
+	rootRater := rate.SmoothRate(10)
+	con.Add(func() string {
+		return fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate())))
+	})
 	downloader.OnDownload(func(download *core.Download) {
-		dlChan <- download
+		prog := download.Progress()
+		start := time.Now()
+		rater := rate.SmoothRate(10)
+		var via string
+		if download.Provider != download.File.Provider() {
+			via = fmt.Sprintf(" (via %s)", download.Provider.Name())
+		}
+		con.Insert(-1, func() string {
+			if download.Done() {
+				if download.Err() != nil {
+					return fmt.Sprintf("%s: error: %v", download.File.Name(), download.Err())
+				} else if download.Canceled() {
+					return fmt.Sprintf("%s: stopped.", download.File.Name())
+				} else {
+					name := download.File.Name()
+					download := units.BytesSize(float64(download.Progress()))
+					pt := prettyTime(time.Since(start))
+					return fmt.Sprintf("%s: downloaded %s in %s%s", name, download, pt, via)
+				}
+			} else {
+				progress := download.Progress()
+				diff := progress - prog
+				prog = progress
+				rater.Add(diff)
+				rootRater.Add(diff)
+				return fprog(download.File.Name(), float64(prog), float64(download.File.Size()), float64(rater.Rate()), via)
+			}
+		})
 	})
 	downloader.OnSkip(func(file core.File) {
-		con.AddRow(fmt.Sprintf("%s: skipped...", file.Name()))
+		con.InsertConst(-1, fmt.Sprintf("%s: skipped...", file.Name()))
 	})
 	downloader.OnError(func(f core.File, err error) {
 		exit = 1
-		con.AddRow(fmt.Sprintf("%v: error: %v.", f.Name(), err))
+		con.InsertConst(-1, fmt.Sprintf("%v: error: %v.", f.Name(), err))
 	})
 	downloader.Start()
 	wg.Wait()
-	close(dlChan)
-	<-done
 	return exit
 }
 
