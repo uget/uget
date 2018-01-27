@@ -73,8 +73,8 @@ func (f file) MarshalJSON() ([]byte, error) {
 		"url":      f.URL().String(),
 		"size":     f.Size(),
 	}
-	if cks, algo, _ := f.Checksum(); cks != "" {
-		data["checksum:"+strings.ToLower(algo)] = cks
+	if cks, algo, _ := f.Checksum(); cks != nil {
+		data["checksum"] = map[string]string{"algo": strings.ToLower(algo), "sum": fmt.Sprintf("%x", cks)}
 	}
 	return json.Marshal(data)
 }

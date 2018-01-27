@@ -78,6 +78,13 @@ func (r *request) ResolvesTo(f api.File) api.Request {
 	return r.resolvesTo(online(f, r.root().URL(), r.done))
 }
 
+func (r *request) Errs(u *url.URL, err error) api.Request {
+	if u == nil {
+		u = r.u
+	}
+	return r.resolvesTo(errored(r.root().u, u, err))
+}
+
 func (r *request) Deadend(u *url.URL) api.Request {
 	if u == nil {
 		u = r.u

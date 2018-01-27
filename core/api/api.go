@@ -28,7 +28,7 @@ type File interface {
 	Size() int64
 	// Filename
 	Name() string
-	Checksum() (string, string, hash.Hash)
+	Checksum() ([]byte, string, hash.Hash)
 	Provider() Provider
 }
 
@@ -81,8 +81,11 @@ type Request interface {
 	// This must lead to a valid and downloadable resource.
 	ResolvesTo(File) Request
 
-	// Deadend generates a resolved child request represents an unavailable resource.
+	// Deadend generates a resolved child request representing an unavailable resource.
 	Deadend(*url.URL) Request
+
+	// Errors generates a resolved child request representing an errored resource.
+	Errs(*url.URL, error) Request
 
 	// Yields generates an unresolved child request with the given URL.
 	Yields(*url.URL) Request

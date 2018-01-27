@@ -146,10 +146,10 @@ func cmdResolve(args []string, opts *options) int {
 			fmt.Printf("%9s   %s", length, file.Name())
 			sum, algo, _ := file.Checksum()
 			if opts.Resolve.Full {
-				if sum == "" {
-					fmt.Printf(" (%s)", file.URL())
+				if sum == nil {
+					fmt.Printf("   %s", file.URL())
 				} else {
-					fmt.Printf(" (%s, %s: %s)", file.URL(), algo, sum)
+					fmt.Printf("   %s   %s %s", file.URL(), algo, fmt.Sprintf("%x", sum))
 				}
 			}
 			fmt.Println()
