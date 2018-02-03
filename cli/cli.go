@@ -126,10 +126,14 @@ func RunApp(arguments []string) int {
 	}
 	parser := flags.NewParser(opts, flags.Default^flags.PrintErrors)
 	parser.Name = arguments[0]
+	parser.Find("meta").Aliases = []string{"resolve"}
 	parser.UnknownOptionHandler = func(opt string, split flags.SplitArgument, args []string) ([]string, error) {
 		arg, ok := split.Value()
 		if ok {
 			opts.Unknowns[opt] = arg
+			return args, nil
+		}
+		if len(args) == 0 {
 			return args, nil
 		}
 		opts.Unknowns[opt] = args[0]
