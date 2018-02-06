@@ -40,12 +40,14 @@ type get struct {
 	DryRun     bool `short:"n" long:"dry-run" description:"Just output instead of downloading."`
 	NoContinue bool `short:"C" long:"no-continue" description:"Redownload entire file instead of continuing previous download."`
 	NoSkip     bool `short:"S" long:"no-skip" description:"Redownload file even if size is correct"`
-	Jobs       int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel (default: 3)"`
+	Jobs       int  `short:"j" long:"jobs" default:"3" description:"Jobs to run in parallel"`
 }
 
 type resolve struct {
 	*urlArgs
-	Full bool `short:"f" long:"full" description:"List all available information"`
+	Full    bool `short:"f" long:"full" description:"List all available information"`
+	Compare bool `short:"c" long:"compare" description:"Compare file checksums."`
+	Remove  bool `short:"r" long:"remove" description:"Remove if file does not compare (only works with -c)."`
 }
 
 type daemon struct{}

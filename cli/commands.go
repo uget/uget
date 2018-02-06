@@ -152,6 +152,49 @@ func cmdResolve(args []string, opts *options) int {
 					fmt.Printf("   %s   %s %s", file.URL(), algo, fmt.Sprintf("%x", sum))
 				}
 			}
+			if opts.Resolve.Compare {
+				remove := false
+				fmt.Print(", ")
+				if stat, err := os.Stat(file.Name()); err != nil {
+					if err.(*os.PathError).Err == syscall.ENOENT {
+						fmt.Print("no local file.")
+					} else {
+						fmt.Printf("error reading local file: %v", err)
+					}
+				} else {
+					if stat.Size() < file.Size() {
+						fmt.Print("local is smaller")
+					} else if stat.Size() > file.Size() {
+						fmt.Print("local is bigger")
+						remove = true
+					} else {
+						fmt.Print("sizes match. ")
+						if cks, algo, h := file.Checksum(); h != nil {
+							fmt.Printf("%s-checksum: ", algo)
+							if f, err := os.Open(file.Name()); err != nil {
+								fmt.Printf("error opening local: %v", err)
+							} else {
+								io.Copy(h, f)
+								localCks := h.Sum(nil)
+								if bytes.Equal(cks, localCks) {
+									fmt.Print("match")
+								} else {
+									fmt.Printf("don't match (%s : %s)", localCks, cks)
+									remove = true
+								}
+							}
+						} else {
+							fmt.Print("no checksum data available.")
+						}
+					}
+				}
+				if remove {
+					fmt.Print(", deleting")
+					if err := os.Remove(file.Name()); err != nil {
+						fmt.Printf(", error: %v", err)
+					}
+				}
+			}
 			fmt.Println()
 		}
 	}
