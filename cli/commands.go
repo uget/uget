@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/Sirupsen/logrus"
