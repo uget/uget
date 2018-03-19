@@ -17,16 +17,18 @@ type options struct {
 	Accounts accounts `command:"accounts"`
 	Get      get      `command:"get"`
 	Resolve  resolve  `command:"meta"`
-	Server   server   `command:"server"`
+	Server   serve    `command:"server"`
 	Daemon   daemon   `command:"daemon"`
 	Push     push     `command:"push"`
+	Ps       ps       `command:"ps"`
+	Rm       rm       `command:"remove"`
 	Version  version  `command:"version"`
 	Unknowns map[string]string
 }
 
 type version struct{}
 
-type server struct {
+type serve struct {
 	Port     uint16 `short:"p" long:"port" description:"port the server listens on" default:"9666"`
 	BindAddr string `short:"b" long:"bind" description:"address to bind the server to"`
 }
@@ -51,7 +53,23 @@ type resolve struct {
 }
 
 type daemon struct{}
-type push struct{}
+type client struct {
+	Host string `short:"H" long:"host" description:"Host to connect to" default:"localhost:9666"`
+}
+
+type push struct {
+	*client
+	*urlArgs
+}
+
+type ps struct {
+	*client
+	All bool `short:"a" long:"all" description:"List every item"`
+}
+
+type rm struct {
+	*client
+}
 
 type accounts struct {
 	Add     accountsAdd     `command:"add"`
@@ -65,6 +83,14 @@ type accountsDisable struct{}
 type accountsEnable struct{}
 
 /* Commands */
+
+func (v *ps) Execute(args []string) error {
+	return command(args, cmdPs)
+}
+
+func (v *rm) Execute(args []string) error {
+	return command(args, cmdRm)
+}
 
 func (v *version) Execute(args []string) error {
 	return command(args, cmdVersion)
@@ -94,7 +120,7 @@ func (cmd *resolve) Execute(args []string) error {
 	return command(args, cmdResolve)
 }
 
-func (cmd *server) Execute(args []string) error {
+func (cmd *serve) Execute(args []string) error {
 	return command(args, cmdServer)
 }
 

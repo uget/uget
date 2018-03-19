@@ -2,7 +2,12 @@ package cli
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -16,6 +21,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/app"
 	"github.com/uget/uget/core"
+	"github.com/uget/uget/core/api"
 	"github.com/uget/uget/utils/console"
 )
 
@@ -237,13 +243,49 @@ func tryAddAccount(p core.Provider, pr core.Prompter) error {
 	return nil
 }
 
-func useAccounts(d *core.Client) {
+type accountUser interface {
+	Use(api.Account)
+}
+
+func useAccounts(d accountUser) {
 	for _, provider := range core.RegisteredProviders() {
 		if ac, ok := provider.(core.Accountant); ok {
 			for _, acc := range app.AccountManagerFor("", ac).Accounts() {
 				d.Use(acc)
 			}
 		}
+	}
+}
+
+func requestOne(method, host, path string, body io.Reader) map[string]interface{} {
+	var resp map[string]interface{}
+	request(method, host, path, body, &resp)
+	return resp
+}
+
+func requestMany(method, host, path string, body io.Reader) []map[string]interface{} {
+	var resp []map[string]interface{}
+	request(method, host, path, body, &resp)
+	return resp
+}
+
+func request(method, host, path string, body io.Reader, dst interface{}) {
+	c := &http.Client{}
+	req, err := http.NewRequest(strings.ToUpper(method), fmt.Sprintf("http://%s%s", host, path), body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bs, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err = json.Unmarshal(bs, dst); err != nil {
+		fmt.Printf("Error decoding response: %v\n", err)
+		fmt.Printf("Resposne was: %s\n", string(bs))
 	}
 }
 

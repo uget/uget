@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/app"
 	"github.com/uget/uget/core"
-	api "github.com/uget/uget/server"
+	"github.com/uget/uget/server"
 	"github.com/uget/uget/utils/console"
 	"github.com/uget/uget/utils/rate"
 	"github.com/uget/uget/utils/units"
@@ -292,11 +293,11 @@ func cmdGet(args []string, opts *options) int {
 }
 
 func cmdServer(args []string, opts *options) int {
-	server := &api.Server{}
-	server.BindAddr = opts.Server.BindAddr
-	server.Port = opts.Server.Port
+	logrus.SetOutput(os.Stderr)
+	server := server.On(opts.Server.BindAddr, opts.Server.Port)
+	useAccounts(server)
 	if server.Port != 9666 {
-		fmt.Fprintln(os.Stderr, "Click'n'Load v2 will only work for port 9666!")
+		logrus.Warn("Click'n'Load v2 will only work for port 9666!")
 	}
 	server.Run()
 	return 1
@@ -318,7 +319,43 @@ func cmdDaemon(args []string, opts *options) int {
 	return 0
 }
 
+func cmdPs(args []string, opts *options) int {
+	if len(args) > 0 {
+		fmt.Fprintln(os.Stderr, "What are you passing arguments for?")
+		return 1
+	}
+	if files := requestMany("get", opts.Ps.Host, "/containers", nil); files != nil {
+		if cmd, _ := setupPager(len(files)); cmd != nil {
+			defer cmd.Wait()
+			defer os.Stdout.Close()
+		}
+		for _, file := range files {
+			fmt.Printf("%s    %s\n", file["id"].(string)[:12], file["name"])
+		}
+		return 0
+	}
+	return 1
+}
+
 func cmdPush(args []string, opts *options) int {
-	logrus.Error("Not implemented yet.")
-	return 3
+	urls := grabURLs(args, opts.Push.urlArgs)
+	if urls == nil {
+		return 1
+	}
+	links := make([]string, len(urls))
+	for i, u := range urls {
+		links[i] = u.String()
+	}
+	bs, _ := json.Marshal(links)
+	fmt.Println(requestOne("post", opts.Push.Host, "/containers", bytes.NewReader(bs))["id"])
+	return 0
+}
+
+func cmdRm(args []string, opts *options) int {
+	if len(args) != 1 {
+		fmt.Fprintln(os.Stderr, "Only one argument 'id' permitted.")
+		return 1
+	}
+	fmt.Println(requestOne("delete", opts.Rm.Host, "/containers/"+args[0], nil))
+	return 0
 }
