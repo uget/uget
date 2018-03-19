@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/uget/uget/app"
 	"github.com/uget/uget/core"
+	"github.com/uget/uget/utils/console"
 )
 
 func urlsFromFilename(urls *[]*url.URL, f string) error {
@@ -242,4 +245,31 @@ func useAccounts(d *core.Client) {
 			}
 		}
 	}
+}
+
+func setupPager(minHeight int) (*exec.Cmd, error) {
+	if runtime.GOOS != "windows" { // don't support pagers on Windows.
+		if isatty.IsTerminal(os.Stdout.Fd()) {
+			_, height, err := console.GetWinSize()
+			if err == nil && int(height) < minHeight {
+				pager := os.Getenv("PAGER")
+				if pager == "" {
+					pager = "/usr/bin/less"
+				}
+				cmd := exec.Command(pager)
+				r, w, err := os.Pipe()
+				if err != nil {
+					return nil, err
+				}
+				cmd.Stdout = os.Stdout
+				cmd.Stdin = r
+				if err := cmd.Start(); err != nil {
+					return nil, err
+				}
+				os.Stdout = w
+				return cmd, nil
+			}
+		}
+	}
+	return nil, nil
 }

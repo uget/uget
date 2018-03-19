@@ -133,6 +133,10 @@ func cmdResolve(args []string, opts *options) int {
 	var totalLength int64
 	var unknownFactor bool
 	ret := 0
+	if cmd, _ := setupPager(client.ResolvedQueue.Len()); cmd != nil {
+		defer cmd.Wait()
+		defer os.Stdout.Close()
+	}
 	for file := range client.ResolvedQueue.Dequeue() {
 		if file.Err() != nil {
 			fmt.Printf("errored     %s - %v\n", file.URL(), file.Err().Error())
