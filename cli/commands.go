@@ -271,7 +271,7 @@ func cmdGet(args []string, opts *options) int {
 				prog = progress
 				rater.Add(diff)
 				rootRater.Add(diff)
-				return fprog(download.File.Name(), float64(prog), float64(download.File.Size()), float64(rater.Rate()), via)
+				return fprog(download.File.Name(), float64(prog), float64(download.Size()), float64(rater.Rate()), via)
 			}
 		})
 	})
