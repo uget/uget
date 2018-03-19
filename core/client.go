@@ -403,11 +403,12 @@ func (d *Client) download(file File) {
 				d.emit(eError, file, fmt.Errorf("status code %v", resp.Status))
 				return
 			}
-			reader := &passThru{Reader: resp.Body}
+			reader := &passThru{length: resp.ContentLength, Reader: resp.Body}
 			openFlags := os.O_WRONLY | os.O_CREATE
 			if resp.StatusCode == http.StatusPartialContent {
 				openFlags |= os.O_APPEND
-				reader.total = fi.Size()
+				reader.progress = fi.Size()
+				reader.length += reader.progress
 			} else if resp.StatusCode != http.StatusOK {
 				logrus.Warnf("Client#download (%v): unknown status code %v", file.Name(), resp.StatusCode)
 			}
@@ -433,7 +434,8 @@ func (d *Client) download(file File) {
 // the results from individual calls to it.
 type passThru struct {
 	io.Reader
-	total int64 // Total # of bytes transferred
+	progress int64 // Total # of bytes transferred
+	length   int64 // content length
 }
 
 // Read 'overrides' the underlying io.Reader's Read method.
@@ -441,10 +443,14 @@ type passThru struct {
 // use it to keep track of byte counts and then forward the call.
 func (pt *passThru) Read(p []byte) (int, error) {
 	n, err := pt.Reader.Read(p)
-	atomic.AddInt64(&pt.total, int64(n))
+	atomic.AddInt64(&pt.progress, int64(n))
 	return n, err
 }
 
 func (pt *passThru) Progress() int64 {
-	return atomic.LoadInt64(&pt.total)
+	return atomic.LoadInt64(&pt.progress)
+}
+
+func (pt *passThru) Length() int64 {
+	return atomic.LoadInt64(&pt.length)
 }
