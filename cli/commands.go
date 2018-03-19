@@ -257,7 +257,7 @@ func cmdGet(args []string, opts *options) int {
 		return s
 	}
 	rootRater := rate.SmoothRate(10)
-	con.Add(func() string {
+	con.SetFixed(-1, func() string {
 		return fmt.Sprintf("TOTAL %9s/s", units.BytesSize(float64(rootRater.Rate())))
 	})
 	downloader.OnDownload(func(download *core.Download) {
@@ -268,7 +268,7 @@ func cmdGet(args []string, opts *options) int {
 		if download.Provider != download.File.Provider() {
 			via = fmt.Sprintf(" (via %s)", download.Provider.Name())
 		}
-		con.Insert(-1, func() string {
+		con.SetFixed(download.File.SeqNum(), func() string {
 			if download.Done() {
 				if download.Err() != nil {
 					return fmt.Sprintf("%s: error: %v", download.File.Name(), download.Err())
@@ -291,11 +291,11 @@ func cmdGet(args []string, opts *options) int {
 		})
 	})
 	downloader.OnSkip(func(file core.File) {
-		con.InsertConst(-1, fmt.Sprintf("%s: skipped...", file.Name()))
+		con.SetFixed(file.SeqNum(), func() string { return fmt.Sprintf("%s: skipped...", file.Name()) })
 	})
 	downloader.OnError(func(f core.File, err error) {
 		exit = 1
-		con.InsertConst(-1, fmt.Sprintf("%v: error: %v.", f.Name(), err))
+		con.SetFixed(f.SeqNum(), func() string { return fmt.Sprintf("%v: error: %v.", f.Name(), err) })
 	})
 	downloader.Start()
 	wg.Wait()

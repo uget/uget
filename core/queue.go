@@ -112,8 +112,12 @@ func (q *queue) enqueueAll(reqs []*request) <-chan struct{} {
 // == private methods, not to be used from outside ==
 
 func (q *queue) dispatch() {
+	order := 0
 	for {
 		if q.Len() > 0 {
+			if q.peek().resolved() {
+				q.peek().file.setPopOrder(order)
+			}
 			select {
 			case q.getAll <- *q.pQueue:
 				pq := make(pQueue, 0)
@@ -121,6 +125,7 @@ func (q *queue) dispatch() {
 			case q.get <- q.peek().file:
 				// fmt.Printf("q#pop, prio %v, url %v\n", q.peek().prio, q.peek().u)
 				heap.Pop(q)
+				order++
 			case job := <-q.JobQueue:
 				job.Work()
 				close(job.Done)

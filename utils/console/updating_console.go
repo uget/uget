@@ -10,9 +10,11 @@ import (
 
 // UpdatingConsole manages output to the TTY in a fixed-interval
 type UpdatingConsole struct {
-	File *os.File
-	jobs chan func()
-	rows map[uint]func() string
+	File      *os.File
+	jobs      chan func()
+	rows      map[int]func() string
+	length    int
+	neglength int
 }
 
 // Updating initializes an UpdatingConsole object that updates
@@ -21,7 +23,9 @@ func Updating(update time.Duration) *UpdatingConsole {
 	c := &UpdatingConsole{
 		os.Stdout,
 		make(chan func()),
-		map[uint]func() string{},
+		map[int]func() string{},
+		0,
+		0,
 	}
 	go c.dispatch(update)
 	return c
@@ -47,12 +51,10 @@ func (c *UpdatingConsole) Add(text func() string) {
 // if line number exceeds total amount of lines, row will be inserted at the end instead.
 func (c *UpdatingConsole) Insert(at int, text func() string) {
 	c.jobs <- func() {
-		if at < 0 {
-			at += len(c.rows)
-		} else if at > len(c.rows) {
-			at = len(c.rows)
+		if at == math.MaxInt64 {
+			at = c.length
 		}
-		c.insert(uint(at), text)
+		c.insert(at, text)
 	}
 }
 
@@ -69,20 +71,51 @@ func (c *UpdatingConsole) Close(update bool) {
 	close(c.jobs)
 }
 
-func (c *UpdatingConsole) insert(at uint, text func() string) {
-	length := uint(len(c.rows))
-	for i := at; i < length; i++ {
-		c.rows[i], text = text, c.rows[at]
-		c.update(at)
+func (c *UpdatingConsole) insert(at int, text func() string) {
+	c.ensure(at)
+	if at < 0 {
+		at += c.length
 	}
-	c.rows[length] = text
-	fmt.Println()
-	c.update(length)
+	for i := at; i < c.length; i++ {
+		c.rows[i], text = text, c.rows[i]
+		c.update(i)
+	}
+	c.rows[c.length] = text
+	c.update(c.length)
 }
 
-func (c *UpdatingConsole) update(lineNo uint) {
-	text := c.rows[lineNo]()
-	diff := uint(len(c.rows)) - lineNo
+func (c *UpdatingConsole) SetFixed(at int, text func() string) {
+	c.jobs <- func() {
+		c.rows[at] = text
+		c.update(at)
+	}
+}
+
+func (c *UpdatingConsole) ensure(at int) {
+	if at >= c.length {
+		fmt.Println(strings.Repeat("\n", at-c.length))
+		c.length = at + 1
+	} else if -at > c.neglength {
+		fmt.Println(strings.Repeat("\n", -at-c.neglength-1))
+		c.neglength = -at
+	}
+}
+
+func (c *UpdatingConsole) update(lineNo int) {
+	c.ensure(lineNo)
+	textF := c.rows[lineNo]
+	if textF == nil {
+		return
+	}
+	if lineNo < 0 {
+		lineNo += c.length + c.neglength + 1
+	}
+	text := textF()
+	diff := (c.length + c.neglength) - lineNo
+	h, _, err := GetWinSize()
+	if err == nil && diff >= int(h) {
+		return
+	}
 	fmt.Fprintf(c.File, "%c[%dA", 27, diff)
 	fmt.Fprintf(c.File, "\r%c[2K", 27)
 	fmt.Fprintf(c.File, "%s\n", strings.TrimSpace(text))
@@ -90,9 +123,8 @@ func (c *UpdatingConsole) update(lineNo uint) {
 }
 
 func (c *UpdatingConsole) updateAll() {
-	length := uint(len(c.rows))
-	for lineNo := uint(0); lineNo < length; lineNo++ {
-		c.update(lineNo)
+	for line := range c.rows {
+		c.update(line)
 	}
 }
 
