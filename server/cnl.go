@@ -1,4 +1,4 @@
-// +build clickandload
+// +build !no_clickandload
 
 package server
 
@@ -10,9 +10,9 @@ import (
 	"github.com/uget/uget/core"
 )
 
-func cnl(m *macaron.Macaron) {
+func (s *Server) cnl(m *macaron.Macaron) {
 	m.Group("", func() {
-		m.Post("/flash/addcrypted2", cnlv2.HttpAction(addLinks, nil))
+		m.Post("/flash/addcrypted2", cnlv2.HttpAction(s.addLinks, nil))
 		m.Get("/flash", wrap(fmt.Sprintf("uget %s", core.Version)))
 		m.Get("/jdcheck.js", as("text/javascript"), wrap("jdownloader = true;"))
 		m.Get("/crossdomain.xml", as("text/html"), wrap(cnlv2.CrossDomain))
