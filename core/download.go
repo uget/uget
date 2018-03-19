@@ -54,6 +54,10 @@ func (d *Download) Progress() int64 {
 	return d.reader.Progress()
 }
 
+func (d *Download) Size() int64 {
+	return d.reader.Length()
+}
+
 // Wait blocks the caller until this download is finished
 func (d *Download) Wait() {
 	<-d.done
@@ -106,6 +110,7 @@ func (d *Download) do() {
 // Progress is an object that represents a long operation that can track a progress
 type Progress interface {
 	Progress() int64
+	Length() int64
 }
 
 // ReadProgress is an io.ReadCloser that tracks progress
