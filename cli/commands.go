@@ -173,7 +173,7 @@ func cmdResolve(args []string, opts *options) int {
 						fmt.Print("local is smaller")
 					} else if stat.Size() > file.Size() {
 						fmt.Print("local is bigger")
-						remove = true
+						remove = opts.Resolve.Remove
 					} else {
 						fmt.Print("sizes match. ")
 						if cks, algo, h := file.Checksum(); h != nil {
@@ -187,7 +187,7 @@ func cmdResolve(args []string, opts *options) int {
 									fmt.Print("match")
 								} else {
 									fmt.Printf("don't match (%s : %s)", localCks, cks)
-									remove = true
+									remove = opts.Resolve.Remove
 								}
 							}
 						} else {
