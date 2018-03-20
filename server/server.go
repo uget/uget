@@ -53,7 +53,6 @@ func (s *Server) Run() {
 	m := macaron.NewWithLogger(macaronLog{})
 	m.Use(macaron.Renderer())
 	m.Use(func(m *macaron.Context) {
-		fmt.Printf("%v: %v %v\n", m.RemoteAddr(), m.Req.Method, m.Req.RequestURI)
 		host, _, err := net.SplitHostPort(m.Req.RemoteAddr)
 		if err != nil {
 			return
