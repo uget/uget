@@ -159,7 +159,7 @@ func cmdResolve(args []string, opts *options) int {
 					fmt.Printf("   %s   %s %s", file.URL(), algo, fmt.Sprintf("%x", sum))
 				}
 			}
-			if opts.Resolve.Compare {
+			if opts.Resolve.Compare || opts.Resolve.Remove {
 				remove := false
 				fmt.Print(", ")
 				if stat, err := os.Stat(file.Name()); err != nil {
