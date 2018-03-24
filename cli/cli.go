@@ -48,6 +48,7 @@ type resolve struct {
 	Full    bool   `short:"f" long:"full" description:"List all available information"`
 	Compare bool   `short:"c" long:"compare" description:"Compare file checksums."`
 	Remove  []bool `short:"r" long:"remove" description:"Remove local files that cannot be equal to remote (implies -c). Specify twice to remove all that differ."`
+	Bytes   bool   `short:"b" long:"bytes" description:"Display size as bytes."`
 }
 
 type daemon struct{}

@@ -149,8 +149,12 @@ func cmdResolve(args []string, opts *options) int {
 			fmt.Printf("???????     %s\n", file.URL())
 		} else {
 			totalLength += file.Size()
-			length := units.BytesSize(float64(file.Size()))
-			fmt.Printf("%9s   %s", length, file.Name())
+			if opts.Resolve.Bytes {
+				fmt.Printf("%10v", file.Size())
+			} else {
+				fmt.Printf("%10s", units.BytesSize(float64(file.Size())))
+			}
+			fmt.Printf("   %s", file.Name())
 			sum, algo, _ := file.Checksum()
 			if opts.Resolve.Full {
 				if sum == nil {
