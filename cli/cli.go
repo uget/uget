@@ -45,9 +45,9 @@ type get struct {
 
 type resolve struct {
 	*urlArgs
-	Full    bool `short:"f" long:"full" description:"List all available information"`
-	Compare bool `short:"c" long:"compare" description:"Compare file checksums."`
-	Remove  bool `short:"r" long:"remove" description:"Remove local files that cannot be equal to remote (implies -c)."`
+	Full    bool   `short:"f" long:"full" description:"List all available information"`
+	Compare bool   `short:"c" long:"compare" description:"Compare file checksums."`
+	Remove  []bool `short:"r" long:"remove" description:"Remove local files that cannot be equal to remote (implies -c). Specify twice to remove all that differ."`
 }
 
 type daemon struct{}

@@ -159,7 +159,7 @@ func cmdResolve(args []string, opts *options) int {
 					fmt.Printf("   %s   %s %s", file.URL(), algo, fmt.Sprintf("%x", sum))
 				}
 			}
-			if opts.Resolve.Compare || opts.Resolve.Remove {
+			if opts.Resolve.Compare || len(opts.Resolve.Remove) > 0 {
 				remove := false
 				fmt.Print(", ")
 				if stat, err := os.Stat(file.Name()); err != nil {
@@ -171,9 +171,10 @@ func cmdResolve(args []string, opts *options) int {
 				} else {
 					if stat.Size() < file.Size() {
 						fmt.Print("local is smaller")
+						remove = len(opts.Resolve.Remove) > 1
 					} else if stat.Size() > file.Size() {
 						fmt.Print("local is bigger")
-						remove = opts.Resolve.Remove
+						remove = len(opts.Resolve.Remove) > 0
 					} else {
 						fmt.Print("sizes match. ")
 						if cks, algo, h := file.Checksum(); h != nil {
@@ -187,7 +188,7 @@ func cmdResolve(args []string, opts *options) int {
 									fmt.Print("match")
 								} else {
 									fmt.Printf("don't match (%s : %s)", localCks, cks)
-									remove = opts.Resolve.Remove
+									remove = len(opts.Resolve.Remove) > 0
 								}
 							}
 						} else {
