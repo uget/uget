@@ -173,11 +173,17 @@ func cmdResolve(args []string, opts *options) int {
 						fmt.Printf("error reading local file: %v", err)
 					}
 				} else {
+					var localSize string
+					if opts.Resolve.Bytes {
+						localSize = fmt.Sprintf("%v", stat.Size())
+					} else {
+						localSize = units.BytesSize(float64(stat.Size()))
+					}
 					if stat.Size() < file.Size() {
-						fmt.Print("local is smaller")
+						fmt.Printf("local is smaller (%s)", localSize)
 						remove = len(opts.Resolve.Remove) > 1
 					} else if stat.Size() > file.Size() {
-						fmt.Print("local is bigger")
+						fmt.Printf("local is bigger (%s)", localSize)
 						remove = len(opts.Resolve.Remove) > 0
 					} else {
 						fmt.Print("sizes match. ")
