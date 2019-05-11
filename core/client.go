@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/cenkalti/backoff"
 	"github.com/chuckpreslar/emission"
 	"github.com/uget/uget/core/api"
 )
@@ -218,9 +219,30 @@ func (d *Client) resolve(jobs []*request) {
 	for _, unit := range units {
 		go func(unit resolveUnit) {
 			defer wg.Done()
-			requests := unit()
+			var requests []api.Request
+			operation := func() error {
+				requests = unit()
+				var err error
+				for _, req := range requests {
+					request := req.(*request)
+					if request.file.Err() == nil {
+						// not all files errored
+						// => if other files errored (only possible during ResolveMany),
+						//    then we assume it is an error with the file, not with the request
+						return nil
+					}
+					logrus.Debugf("%v: %v", request.file.URL(), request.file.Err())
+					err = request.file.Err()
+				}
+				return err
+			}
+			err := backoff.Retry(operation, backoff.NewExponentialBackOff())
 			for _, req := range requests {
 				request := req.(*request)
+				if err != nil {
+					request.done()
+					continue
+				}
 				if request.resolved() {
 					if request.file.Err() == nil && request.file.Offline() || d.retrievers == 0 {
 						request.done()
